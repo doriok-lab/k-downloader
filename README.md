@@ -4,7 +4,7 @@
 <br>사용자 편의를 고려하여 GUI 환경을 제공합니다.
 
 <p>버전 2024.09.09
-<p>라이브러리:
+<p>사용된 소프트웨어:
 <br><a href="https://github.com/yt-dlp/yt-dlp">yt-dlp</a> 2024.08.06
 <br><a href="https://www.ffmpeg.org/">FFmpeg</a> 2024-06-21-git-d45e20c37b
 <br><a href="https://wxpython.org/">wxPython</a> 4.2.0
