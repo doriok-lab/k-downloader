@@ -13,3 +13,11 @@
 <br>기타 다수의 Python용 패키지
 <p><strong>프로그래밍 언어</strong>:
 <br><a href="https://www.python.org/">Python</a> 3.10.10
+
+# 설치 방법
+<ol>
+  <li>우측 메뉴 중에서 "Release"를 클릭합니다.</li>
+  <li>릴리스의 "Assets" 중에서 설치 파일인 "k-downloader-setup.exe"를 다운로드합니다.</li>
+  <li>다운받은 설치 파일을 실행합니다. 설치 과정 중에 프로그램이 설치될 곳을 사용자가 지정할 수 있습니다.</li>
+  <li>"K-Downloader" 폴더의 "K-Downloader.exe"를 실행하면 됩니다.</li>
+</ol>
