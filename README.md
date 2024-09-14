@@ -18,6 +18,5 @@
 <ol>
   <li>우측 메뉴 중에서 "<strong>Releases</strong>"를 클릭합니다.</li>
   <li>릴리스의 "<strong>Assets</strong>" 중에서 설치 파일인 "k-downloader-setup.exe"를 다운로드합니다.</li>
-  <li>다운받은 설치 파일을 실행합니다. 설치 과정 중에 프로그램이 설치될 곳을 사용자가 지정할 수 있습니다.</li>
-  <li>"K-Downloader" 폴더의 "K-Downloader.exe"를 실행하면 됩니다.</li>
+  <li>다운받은 설치 파일을 실행합니다.</li>
 </ol>
