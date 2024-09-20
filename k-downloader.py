@@ -773,7 +773,7 @@ class WorkerThread3(Thread):
             parent.worker4.abort()
 
         if parent.task == 'ytdlp':
-            parent.set_controls('ytdlp')
+            parent.set_controls(parent.task)
             parent.gauge.SetRange(10)
             s = '[yt-dlp 업데이트] 준비 중입니다. 잠깐만 기다려주세요..'
             parent.status.SetLabel(s)
@@ -786,7 +786,7 @@ class WorkerThread3(Thread):
                 self.checkproc_update_ytdlp()
 
         elif parent.task == 'kdownloader':
-            parent.set_controls('kdownloader')
+            parent.set_controls(parent.task)
             parent.gauge.SetRange(102)
             s = f'[{TITLE} 설치파일 다운로드] 준비 중입니다. 잠깐만 기다려주세요..'
             parent.status.SetLabel(s)
@@ -905,6 +905,7 @@ class WorkerThread4(Thread):
 
     def run(self):
         parent = self.parent
+        parent.set_controls(parent.task)
         if self.arg == 'ytdlp':
             url = 'https://github.com/yt-dlp/yt-dlp/blob/master/yt_dlp/version.py'
             text = requests.get(url).text
@@ -933,7 +934,6 @@ class WorkerThread4(Thread):
                 parent.kdownloader_latest_version = result.group(1).strip()
                 if not parent.update_notify_kdownloader:
                     if parent.kdownloader_latest_version != VERSION:
-                        parent.set_controls()
                         self.abort()
 
     def abort(self):
@@ -1236,7 +1236,7 @@ class VideoDownloader(wx.Frame):
         obj = wx.Window.FindFocus()
         if evt.GetKeyCode() == wx.WXK_RETURN:
             if self.txtURL.HasFocus():
-                if self.worker or self.worker2 or self.worker3 or self.worker4 or self.worker5:
+                if self.worker or self.worker2 or self.worker3 or self.worker5:
                     self.onabort(evt)
                 else:
                     self.onextract()
@@ -1330,7 +1330,7 @@ class VideoDownloader(wx.Frame):
 
     def onextract(self, evt=None):
         if not self.txtURL.GetValue():
-            wx.MessageBox('동영상 URL을 입력하세요.', TITLE, style=wx.ICON_WARNING)
+            wx.MessageBox('동영상 URL을 입력하세요.\n\n ', TITLE, style=wx.ICON_WARNING)
             self.txtURL.SetFocus()
             return
 
@@ -1341,8 +1341,6 @@ class VideoDownloader(wx.Frame):
         self.row_2nd = -1
         self.last_sel = (-1, -1)
 
-        self.set_controls('extract')
-
         self.task = 'extract'
         self.wtxt = ''
         self.L3 = None
@@ -1350,6 +1348,7 @@ class VideoDownloader(wx.Frame):
         self.L4 = None
         self.gauge.SetRange(20 if 'vimeo.com/' in self.txtURL.GetValue() else 10)
         self.cur_gauge = 0
+        self.set_controls(self.task)
         self.worker = WorkerThread(self)
         self.worker.daemon = True
         self.worker.start()
@@ -2212,8 +2211,6 @@ class VideoDownloader(wx.Frame):
                 else:
                     return
 
-        self.set_controls('download')
-
         self.cur_video['ext'] = ext if self.task == 'download' else 'mp4'
         self.no_ffmpeg = False
 
@@ -2223,6 +2220,7 @@ class VideoDownloader(wx.Frame):
             self.gauge.SetRange(117 if self.cur_video['ext'] == 'mkv' else 113)
 
         self.btnAbort.SetFocus()
+        self.set_controls(self.task)
         self.worker = WorkerThread(self)
         self.worker.daemon = True
         self.worker.start()
@@ -2256,6 +2254,9 @@ class VideoDownloader(wx.Frame):
             self.control_state['btnUnselect.IsEnabled'] = self.btnUnselect.IsEnabled()
 
     def set_controls(self, arg=None):
+        if arg == 'checkversion':
+            return
+
         if arg == 'extract':
             self.btnPreview.Disable()
             self.btnPreview2.Disable()
@@ -2286,6 +2287,9 @@ class VideoDownloader(wx.Frame):
         self.cbRemux.Disable()
 
     def restore_controls(self, arg=None):
+        if arg == 'checkversion':
+            return
+
         self.sizer.Show(self.inner2, self.control_state['inner2.IsShown'])
         self.btnOpenDir.Show(self.control_state['btnOpenDir.IsShown'])
         self.btnOpen.Show(self.control_state['btnOpen.IsShown'])
@@ -2317,6 +2321,7 @@ class VideoDownloader(wx.Frame):
             self.menuBar.Enable(101, True)
             self.menuBar.Enable(111, True)
             self.menuBar.Enable(203, True)
+            self.menuBar.Enable(205, True)
 
     def onremux(self, evt):
         wildcard = '동영상 (*.mkv;*.webm;*.m3u8;*.mov;*.avi;*.wmv)|' \
@@ -2339,8 +2344,8 @@ class VideoDownloader(wx.Frame):
         if os.path.isfile(self.outfile):
             os.remove(self.outfile)
 
-        self.set_controls('remux')
         self.duration = ''
+        self.set_controls(self.task)
         self.worker2 = WorkerThread2(self)
         self.worker2.daemon = True
         self.worker2.start()
