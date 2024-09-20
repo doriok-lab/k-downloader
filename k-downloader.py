@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+# SPDX-License-Identifier: MIT
+
 import re
 from subprocess import Popen, PIPE, check_output
 import ctypes
@@ -227,14 +229,6 @@ def evt_result(win, func):
     win.Connect(-1, -1, -1, func)
 
 
-"""
-def getFormatById(myList, v):
-    for i, x in enumerate(myList):
-        if x[0] == v:
-            return x
-"""
-
-
 def getseconds(s):
     h, m, s = s.split(':')
     sec = int(h) * 3600 + int(m) * 60 + float(s)
@@ -269,32 +263,32 @@ class WorkerThread(Thread):
         
     def run(self):
         parent = self.parent
-        parent.cancelled = False
+        # parent.cancelled = False
         parent.task_done = False
         parent.progress_count = 0
         parent.gauge.SetValue(parent.progress_count)
-        s = '[동영상 분석] 준비 중입니다. 잠깐만 기다려주세요..'  # if parent.task == 'analyze':
+        s = '[정보 추출] 준비 중입니다. 잠깐만 기다려주세요..'  # if parent.task == 'extract':
         if parent.task == 'download':
             parent.percent_last = -1
             s = '[동영상 다운로드] 준비 중입니다. 잠깐만 기다려주세요..'
 
         parent.status.SetLabel(s)
 
-        if parent.task == 'analyze':
-            self.analyze_it()
+        if parent.task == 'extract':
+            self.extract_it()
 
         elif parent.task == 'download':
             self.download_it()
 
-    def abort(self):
-        wx.PostEvent(self.parent, ResultEvent(f'{self.parent.task}-cancelled'))
+    def abort(self, evt=None):
+        suffix = '' if evt else '2'
+        wx.PostEvent(self.parent, ResultEvent(f'{self.parent.task}-cancelled{suffix}'))
         self.raise_exception()
 
     def raise_exception(self):
         thread_id = self.get_id()
         res = ctypes.pythonapi.PyThreadState_SetAsyncExc(thread_id,
                                                          ctypes.py_object(SystemExit))
-
         if res > 1:
             ctypes.pythonapi.PyThreadState_SetAsyncExc(thread_id, 0)
             print('예외 발생 실패')
@@ -307,7 +301,7 @@ class WorkerThread(Thread):
             if t is self:
                 return t.native_id
 
-    def analyze_it(self):
+    def extract_it(self):
         parent = self.parent
         url = parent.txtURL.GetValue()
         parent.is_live = False
@@ -336,45 +330,40 @@ class WorkerThread(Thread):
 
         # print('task =>', parent.task, ', cmd =>', ' '.join(cmd))
 
-        """
-        try:
-            Popen(f'TASKKILL /IM {YT_DLP_PATH} /F', creationflags=0x08000000)
-        except Exception as e:
-            print(e)
-        """
-
         parent.proc = Popen(cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE, creationflags=0x08000000)
         while parent.proc.poll() is None:
-            self.checkprogress()
+            self.checkproc_extract()
 
         if parent.task_done:
-            wx.PostEvent(parent, ResultEvent('analyze-finished'))
+            wx.PostEvent(parent, ResultEvent('extract-finished'))
 
-    def checkprogress(self):
-        # def analyze_it()
+    def checkproc_extract(self):
         parent = self.parent
         s = str(parent.proc.stdout.readline())
-        # print(s)
+        #print(s)
+        if s == "b''":
+            return
+        s = s.replace("b'", "").replace("\\r\\n'", "")
+        s = s.replace('b"', '').replace('\\r\\n"', '')
+        print(s)
 
         if 'getaddrinfo failed' in s or \
-                'Unable to download webpage' in s or \
-                'Unable to download API page' in s or \
-                'Downloading iframe API JS' in s:
-            msg_ = '인터넷 연결상태를 확인해주세요.'
+            'Unable to download webpage' in s or \
+            'Unable to download API page' in s or \
+            'Downloading iframe API JS' in s:
 
-            s = s.replace('getaddrinfo failed', 'DNS 조회에 실패했습니다') \
-                .replace('Unable to download webpage', '웹페이지를 다운로드할 수 없습니다.') \
-                .replace('Unable to download API page', 'API 페이지를 다운로드할 수 없습니다') \
-                .replace('Downloading iframe API JS', 'iframe API JS 다운로드') \
-                .replace('b"', '').replace('\\r\\n"', '')
+            msg = '인터넷 연결상태를 확인해주세요.'
+
+            s = re.sub('.*Unable to download webpage.*', '웹페이지를 다운로드할 수 없습니다.', s)
+            s = re.sub('.*getaddrinfo failed.*', 'DNS 조회에 실패했습니다.', s)
+            s = re.sub('.*Unable to download API page.*', 'API 페이지를 다운로드할 수 없습니다.', s)
+            s = re.sub('.*Downloading iframe API JS.*', 'iframe API JS 다운로드', s)
 
             print(s)
             parent.status.SetLabel(s)
-            wx.MessageBox(f'{msg_}\n\n{s}', TITLE, style=wx.ICON_ERROR)
-
             parent.gauge.SetValue(0)
-            evt = wx.PyCommandEvent(wx.EVT_BUTTON.typeId, parent.btnAbort.GetId())
-            wx.PostEvent(parent.btnAbort, evt)
+            wx.MessageBox(f'{msg}\n\n{s}', TITLE, style=wx.ICON_ERROR)
+            self.abort()
             return
 
         if s == "b''":
@@ -388,15 +377,14 @@ class WorkerThread(Thread):
 
         if s.startswith('ERROR:'):
             print(s)
-            msg_ = '에러:'
+            msg = '에러:'
 
             s = re.sub('please report.*', '', s)
             s = re.sub('This live event will begin in a few moments', '이 라이브 이벤트는 잠시 후에 시작됩니다', s)
             s = re.sub('This live event will begin in (\d+) minutes', r'이 라이브 이벤트는 \1분 후에 시작됩니다', s)
             s = re.sub('This live event will begin in (\d+) hours', r'이 라이브 이벤트는 \1시간 후에 시작됩니다', s)
             s = re.sub('This live event will begin in (\d+) days', r'이 라이브 이벤트는 \1일 후에 시작됩니다', s)
-            s = s.replace('Unsupported URL', '지원되지 않는 URL') \
-                .replace('Video unavailable. This video has been removed by the uploader',
+            s = s.replace('Video unavailable. This video has been removed by the uploader',
                          '비디오를 사용할 수 없습니다. 이 비디오는 업로더에 의해 제거되었습니다') \
                 .replace('Unable to extract playlist data', '재생 목록 데이터를 추출할 수 없습니다') \
                 .replace('This request has been blocked due to its TLS fingerprint. '
@@ -408,8 +396,15 @@ class WorkerThread(Thread):
                          '보안/쿠키를 손상해도 괜찮다면 입력 URL에서 "https:"를 "http:"로 교체해 보세요. '
                          '데이터 센터 IP 또는 VPN/proxy를 사용하는 경우 IP가 차단될 수 있습니다.')
             s_ = re.sub(r'\n\n가능하다면 필수 사칭 종속성을 설치하거나.*', '', s)
+            if 'is not a valid URL' in s_:
+                s_ = re.sub("ERROR: \[generic] (.*?) is not a valid URL.+", f"유효하지 않은 URL: {parent.txtURL.GetValue()}", s_)
+
+            elif 'Unsupported URL' in s_:
+                s_ = re.sub("ERROR: Unsupported URL: (.*)$", f"지원되지 않는 URL: {parent.txtURL.GetValue()}", s_)
+
             parent.status.SetLabel(s_)
-            wx.MessageBox(f'{msg_}\n\n{s}', TITLE, style=wx.ICON_ERROR)
+            parent.gauge.SetValue(0)
+            wx.MessageBox(f'{msg}\n\n{s_}', TITLE, style=wx.ICON_ERROR)
 
             if parent.host == 'vimeo' and '"https:"를 "http:"로 교체해 보세요' in s:
                 url = parent.txtURL.GetValue()
@@ -420,38 +415,21 @@ class WorkerThread(Thread):
                                       style=wx.YES_NO | wx.ICON_QUESTION) as messageDialog:
                     if messageDialog.ShowModal() == wx.ID_YES:
                         parent.worker = None
-                        parent.cancelled = True
+                        # parent.cancelled = True
                         try:
                             Popen(f'TASKKILL /F /PID {parent.proc.pid} /T', creationflags=0x08000000)
                         except Exception as e:
                             print(e)
 
                         parent.txtURL.SetValue(url_)
-                        parent.onanalyze()
+                        parent.onextract()
                         return
 
-            parent.gauge.SetValue(0)
-            evt = wx.PyCommandEvent(wx.EVT_BUTTON.typeId, parent.btnAbort.GetId())
-            wx.PostEvent(parent.btnAbort, evt)
+            self.abort()
             return
 
         if s.startswith('WARNING:'):
             print(s)
-            """
-            s = re.sub('if you encounter errors.*', '', s)
-            s = s.replace(
-                'Webpage contains broken formats (poToken experiment detected). Ignoring initial player response',
-                '웹 페이지에 깨진 포맷이 포함되어 있습니다(poToken 실험이 탐지됨). 초기 플레이어 응답 무시') \
-                .replace('API returned broken formats (poToken experiment detected). Retrying',
-                         'API가 깨진 포맷을 반환하였습니다(poToken 실험이 탐지됨). 재시도') \
-                .replace('nsig extraction failed: Some formats may be missing',
-                         'nsig 추출 실패: 일부 형식이 누락되었을 수 있습니다') \
-                .replace('The extractor is attempting impersonation, but no impersonate target is available',
-                         '추출기에서 사칭을 시도하고 있지만 사칭 대상을 사용할 수 없습니다') \
-                .replace('Failed to parse XML: not well-formed (invalid token)',
-                         'XML을 구문 분석하지 못했습니다. 형식이 올바르지 않습니다(잘못된 토큰)')
-            # parent.status.SetLabel(s)
-            """            
             return
 
         if '[info] Available formats' in s:
@@ -492,8 +470,7 @@ class WorkerThread(Thread):
         parent.status.SetLabel(s)
         parent.progress_count += 1
 
-        if not parent.cancelled:
-            parent.gauge.SetValue(parent.progress_count)
+        parent.gauge.SetValue(parent.progress_count)
 
     def download_it(self):
         parent = self.parent
@@ -519,35 +496,33 @@ class WorkerThread(Thread):
 
         parent.proc = Popen(cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE, creationflags=0x08000000)
         while parent.proc.poll() is None:
-            self.checkprogress2()
+            self.checkproc_download()
 
         if parent.task_done:
             wx.PostEvent(parent, ResultEvent('download-finished'))
 
-    def checkprogress2(self):
+    def checkproc_download(self):
         parent = self.parent
         s = str(parent.proc.stdout.readline())
+        #print(s)
         if s == "b''":
             return
 
         s = s.replace("b'", "").replace("\\r\\n'", "")
         s = s.replace('b"', '').replace('\\r\\n"', '')
-
-        # print(s)
+        print(s)
         if 'getaddrinfo failed' in s or \
-                'Unable to download webpage' in s:
-            msg_ = '인터넷 연결상태를 확인해주세요.'
+            'Unable to download webpage' in s:
 
-            s = s.replace('getaddrinfo failed', 'DNS 조회에 실패했습니다') \
-                .replace('Unable to download webpage', '웹페이지를 다운로드할 수 없습니다.') \
-                .replace('b"', '').replace('\\r\\n"', '')
+            msg = '인터넷 연결상태를 확인해주세요.'
+
+            s = re.sub('.*Unable to download webpage.*', '웹페이지를 다운로드할 수 없습니다.', s)
+            s = re.sub('.*getaddrinfo failed.*', 'DNS 조회에 실패했습니다.', s)
 
             parent.status.SetLabel(s)
-            wx.MessageBox(f'{msg_}\n\n{s}', TITLE, style=wx.ICON_ERROR)
-
             parent.gauge.SetValue(0)
-            evt = wx.PyCommandEvent(wx.EVT_BUTTON.typeId, parent.btnAbort.GetId())
-            wx.PostEvent(parent.btnAbort, evt)
+            wx.MessageBox(f'{msg}\n\n{s}', TITLE, style=wx.ICON_ERROR)
+            self.abort()
             return
 
         if s.startswith('WARNING:'):
@@ -558,12 +533,12 @@ class WorkerThread(Thread):
                 print(s)
                 return
 
-            s = s.replace('Inconsistent state of incomplete fragment download. Restarting from the beginning',
-                          '조각 다운로드 상태가 일관성이 없는 상태입니다. 처음부터 다시 시작합니다')
-            print(s)
-            parent.status.SetLabel(s)
-            # wx.MessageBox(f'{msg_}\n\n{s}', TITLE, style=wx.ICON_WARNING)
-            return
+            if 'Inconsistent state of incomplete fragment download' in s:
+                s = re.sub('.*Inconsistent state of incomplete fragment download. Restarting from the beginning.*',
+                           '조각 다운로드 상태가 일관성이 없는 상태입니다. 처음부터 다시 시작합니다.', s)
+                print(s)
+                parent.status.SetLabel(s)
+                return
 
         elif s.startswith('[download]'):
             if '100%' in s and parent.dn == '[다운로드]':
@@ -617,11 +592,7 @@ class WorkerThread(Thread):
                 else:
                     parent.progress_count += 1
 
-            if not parent.cancelled:
-                parent.gauge.SetValue(parent.progress_count)
-            else:
-                parent.gauge.SetValue(0)
-
+            parent.gauge.SetValue(parent.progress_count)
             s = s.replace('[download]', f'{parent.dn}') \
                 .replace('Destination: ', '저장 파일명: ') \
                 .replace('%', f'% {frag}') \
@@ -668,13 +639,10 @@ class WorkerThread(Thread):
                 parent.task_done = True
 
         parent.progress_count += 1
-        if not parent.cancelled:
-            parent.gauge.SetValue(parent.progress_count)
-
+        parent.gauge.SetValue(parent.progress_count)
         s = parent.en2ko(s).replace('\\n', '') \
             .replace('[generic] ', '') \
             .replace('[redirect] ', '')
-
         parent.status.SetLabel(s)
 
 
@@ -689,7 +657,7 @@ class WorkerThread2(Thread):
 
     def run(self):
         parent = self.parent
-        parent.cancelled = False
+        # parent.cancelled = False
         parent.task_done = False
         cmd = f'powershell & "{FFMPEG}" -y -i'.split() + \
               [f'"{parent.infile}"'] + \
@@ -700,7 +668,7 @@ class WorkerThread2(Thread):
         # print(' '.join(cmd))
         parent.proc = Popen(cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE, creationflags=0x08000000)
         while parent.proc.poll() is None:
-            self.checkprogress()
+            self.checkproc_remux()
 
         if parent.task_done:
             wx.PostEvent(parent, ResultEvent('remux-finished'))
@@ -732,21 +700,14 @@ class WorkerThread2(Thread):
             ctypes.pythonapi.PyThreadState_SetAsyncExc(thread_id, 0)
             print('예외 발생 실패')
 
-    def checkprogress(self):
+    def checkproc_remux(self):
         parent = self.parent
         s = str(parent.proc.stdout.readline())
-
+        print(s)
         if s == "b''":
             parent.task_done = True
             self.abort()
             return
-
-        print(s)
-        """
-        if 'size=' in s:
-            parent.task_done = True
-            return
-        """
 
         timestamp = ''
         speed = 0.0
@@ -799,17 +760,20 @@ class WorkerThread3(Thread):
     def __init__(self, parent):
         Thread.__init__(self, None)
         self.parent = parent
+        self.done_size_percent = 0
+        self.done_size = 0
+        self.total_size = 0
+        self.size_per_sec = 0
 
     def run(self):
         parent = self.parent
-        parent.cancelled = False
+        # parent.cancelled = False
         parent.task_done = False
         if parent.worker4:
             parent.worker4.abort()
-            time.sleep(1)
 
-        if parent.task == 'yt-dlp':
-            parent.set_controls('yt-dlp')
+        if parent.task == 'ytdlp':
+            parent.set_controls('ytdlp')
             parent.gauge.SetRange(10)
             s = '[yt-dlp 업데이트] 준비 중입니다. 잠깐만 기다려주세요..'
             parent.status.SetLabel(s)
@@ -819,28 +783,29 @@ class WorkerThread3(Thread):
                   '2>&1 | % ToString | Tee-Object out.txt'.split()
             parent.proc = Popen(cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE, creationflags=0x08000000)
             while parent.proc.poll() is None:
-                self.checkprogress()
+                self.checkproc_update_ytdlp()
 
-        elif parent.task == 'k-downloader':
-            parent.set_controls('k-downloader')
+        elif parent.task == 'kdownloader':
+            parent.set_controls('kdownloader')
             parent.gauge.SetRange(102)
-            s = '[K-Downloader 설치파일 다운로드] 준비 중입니다. 잠깐만 기다려주세요..'
+            s = f'[{TITLE} 설치파일 다운로드] 준비 중입니다. 잠깐만 기다려주세요..'
             parent.status.SetLabel(s)
             url = ('https://github.com/doriok-lab/k-downloader/releases/download/k-downloader_' +
                    parent.kdownloader_latest_version + '/k-downloader-setup.exe')
             parent.outfile = parent.config["download-dir"] + '\\k-downloader-setup.exe'
-
             response = requests.get(url, stream=True)
-            total_size = int(response.headers.get('content-length', 0))
-            done_size = 0
+            self.total_size = int(response.headers.get('content-length', 0))
+            self.done_size = 0
             done_size_percent_last = -1
             with open(parent.outfile, 'wb') as file:
                 try:
                     start_time = time.time()
                     for data in response.iter_content(chunk_size=1024):
                         size = file.write(data)
-                        done_size += size
-                        if done_size == total_size:
+                        self.done_size += size
+                        self.done_size_percent = math.floor(100 * self.done_size / self.total_size)
+                        if self.done_size_percent != done_size_percent_last:
+                            done_size_percent_last = self.done_size_percent
                             end_time = time.time()
                             elapsed_time = end_time - start_time
                             if elapsed_time == 0:
@@ -848,38 +813,19 @@ class WorkerThread3(Thread):
 
                             start_time = time.time()
                             if round((size / elapsed_time) / 1024, 2) >= 1024:
-                                size_per_sec = f'{round(((size / elapsed_time) / 1024) / 1024, 2)}GiB/s'
+                                self.size_per_sec = f'{((size / elapsed_time) / 1024) / 1024:8.2f}GiB/s'
                             elif round(size / elapsed_time, 2) >= 1024:
-                                size_per_sec = f'{round((size / elapsed_time) / 1024, 2)}MiB/s'
+                                self.size_per_sec = f'{(size / elapsed_time) / 1024:8.2f}MiB/s'
                             else:
-                                size_per_sec = f'{round(size / elapsed_time, 2)}KiB/s'
+                                self.size_per_sec = f'{size / elapsed_time:8.2f}KiB/s'
 
-                            self.checkprogress2(100, done_size, total_size, size_per_sec)
-
-                        else:
-                            done_size_percent = round(100 * done_size / total_size)
-                            if done_size_percent != done_size_percent_last:
-                                done_size_percent_last = done_size_percent
-                                end_time = time.time()
-                                elapsed_time = end_time - start_time
-                                if elapsed_time == 0:
-                                    continue
-
-                                start_time = time.time()
-                                if round((size / elapsed_time) / 1024, 2) >= 1024:
-                                    size_per_sec = f'{round(((size / elapsed_time) / 1024) / 1024, 2)}GiB/s'
-                                elif round(size / elapsed_time, 2) >= 1024:
-                                    size_per_sec = f'{round((size / elapsed_time) / 1024, 2)}MiB/s'
-                                else:
-                                    size_per_sec = f'{round(size / elapsed_time, 2)}KiB/s'
-
-                                self.checkprogress2(done_size_percent, done_size, total_size, size_per_sec)
+                            self.checkproc_download_kdownloader()
 
                 except Exception as e:
                     print(e)
 
-        if parent.task_done:
-            wx.PostEvent(parent, ResultEvent(f'{parent.task}-finished'))
+        #if parent.task_done:
+        #    wx.PostEvent(parent, ResultEvent(f'{parent.task}-finished'))
 
     def abort(self):
         parent = self.parent
@@ -907,7 +853,7 @@ class WorkerThread3(Thread):
             ctypes.pythonapi.PyThreadState_SetAsyncExc(thread_id, 0)
             print('예외 발생 실패')
 
-    def checkprogress(self):
+    def checkproc_update_ytdlp(self):
         parent = self.parent
         s = str(parent.proc.stdout.readline())
         print(s)
@@ -938,17 +884,16 @@ class WorkerThread3(Thread):
         parent.progress_count += 1
         parent.gauge.SetValue(parent.progress_count)
 
-    def checkprogress2(self, done_size_percent, done_size, total_size, size_per_sec):
+    def checkproc_download_kdownloader(self):
         parent = self.parent
-        parent.gauge.SetValue(done_size_percent)
-        if done_size == total_size:
+        s = (f'[K-Downloader 설치파일 다운로드] {self.done_size_percent:4}%      '
+             f'크기: {self.total_size/1048576:7.2f}MiB      속도: {self.size_per_sec}')
+        parent.status.SetLabel(s)
+        parent.gauge.SetValue(self.done_size_percent)
+        if self.done_size_percent >= 100:
             parent.task_done = True
             self.abort()
             return
-
-        s = (f'[K-Downloader 설치파일 다운로드] {done_size_percent}%      '
-             f'크기: {round(total_size/1048576)}MiB      속도: {size_per_sec}')
-        parent.status.SetLabel(s)
 
 
 class WorkerThread4(Thread):
@@ -956,16 +901,17 @@ class WorkerThread4(Thread):
         Thread.__init__(self)
         self.parent = parent
         self.arg = arg
+        self.checked = False
 
     def run(self):
         parent = self.parent
-        if self.arg == 'yt-dlp':
+        if self.arg == 'ytdlp':
             url = 'https://github.com/yt-dlp/yt-dlp/blob/master/yt_dlp/version.py'
             text = requests.get(url).text
             result = re.search(r"__version__ = '(.*?)'", text)
             if result:
                 parent.ytdlp_latest_version = result.group(1).strip()
-                if not parent.update_notify:
+                if not parent.update_notify_ytdlp:
                     if parent.ytdlp_latest_version != parent.ytdlp_current_version:
                         message = f'yt-dlp 최신 버전이 있습니다. 업데이트할까요?\n\n' \
                                   f'현재 버전: {parent.ytdlp_current_version}\n\n최신 버전: {parent.ytdlp_latest_version}'
@@ -973,32 +919,39 @@ class WorkerThread4(Thread):
                         with wx.MessageDialog(parent, message, TITLE,
                                               style=wx.YES_NO | wx.ICON_QUESTION) as messageDialog:
                             if messageDialog.ShowModal() == wx.ID_YES:
-                                parent.task = 'yt-dlp'
+                                parent.task = 'ytdlp'
                                 parent.worker3 = WorkerThread3(parent)
                                 parent.worker3.daemon = True
                                 parent.worker3.start()
 
-        elif self.arg == 'k-downloader':
+        elif self.arg == 'kdownloader':
             url = 'https://github.com/doriok-lab/k-downloader/blob/main/version.py'
             text = requests.get(url).text
             result = re.search(r"__version__ = '(.*?)'", text)
             if result:
+                self.checked = True
                 parent.kdownloader_latest_version = result.group(1).strip()
-                if not parent.update_notify:
+                if not parent.update_notify_kdownloader:
                     if parent.kdownloader_latest_version != VERSION:
-                        message = f'K-Downloader 최신 버전이 있습니다. 설치파일을 다운로드할까요?\n\n' \
-                                  f'현재 버전: {VERSION}\n\n최신 버전: {parent.kdownloader_latest_version}'
-
-                        with wx.MessageDialog(parent, message, TITLE,
-                                              style=wx.YES_NO | wx.ICON_QUESTION) as messageDialog:
-                            if messageDialog.ShowModal() == wx.ID_YES:
-                                parent.task = 'k-downloader'
-                                parent.worker3 = WorkerThread3(parent)
-                                parent.worker3.daemon = True
-                                parent.worker3.start()
+                        parent.set_controls()
+                        self.abort()
 
     def abort(self):
+        if self.parent.task == 'checkversion':
+            if self.checked:
+                wx.PostEvent(self.parent, ResultEvent(f'{self.parent.task}-finished'))
+            else:
+                wx.PostEvent(self.parent, ResultEvent(f'{self.parent.task}-cancelled'))
+
         self.raise_exception()
+
+    def raise_exception(self):
+        thread_id = self.get_id()
+        res = ctypes.pythonapi.PyThreadState_SetAsyncExc(thread_id,
+                                                         ctypes.py_object(SystemExit))
+        if res > 1:
+            ctypes.pythonapi.PyThreadState_SetAsyncExc(thread_id, 0)
+            print('예외 발생 실패')
 
     def get_id(self):
         if hasattr(self, '_thread_id'):
@@ -1007,15 +960,6 @@ class WorkerThread4(Thread):
         for t in threading.enumerate():
             if t is self:
                 return t.native_id
-
-    def raise_exception(self):
-        thread_id = self.get_id()
-        res = ctypes.pythonapi.PyThreadState_SetAsyncExc(thread_id,
-                                                         ctypes.py_object(SystemExit))
-
-        if res > 1:
-            ctypes.pythonapi.PyThreadState_SetAsyncExc(thread_id, 0)
-            print('예외 발생 실패')
 
 
 class VideoDownloader(wx.Frame):
@@ -1045,7 +989,7 @@ class VideoDownloader(wx.Frame):
         self.cur_gauge = 0
         self.tempfiles = []
         self.lines = []
-        self.pids_explorer_init = []
+        self.pids_explorer_existing = []
         self.cur_video = {}
         self.config = {}
         self.formats_data = {}
@@ -1056,15 +1000,16 @@ class VideoDownloader(wx.Frame):
         self.last_check = False
         self.last_radio = False
         self.cbRemux_visible = False
-        self.cancelled = False
         self.is_live = False
-        self.update_notify = False
+        self.update_notify_ytdlp = False
+        self.update_notify_kdownloader = False
         self.filesize_checked = False
         self.task_done = False
         self.worker = None
         self.worker2 = None
         self.worker3 = None
         self.worker4 = None
+        self.worker5 = None
         self.wsh = None
         self.dlg = None
         self.proc = None
@@ -1098,7 +1043,8 @@ class VideoDownloader(wx.Frame):
         self.menu2 = wx.Menu()
         self.menu2.Append(203, 'yt-dlp 업데이트')
         self.menu2.AppendSeparator()
-        self.menu2.Append(204, 'K-Downloader 정보')
+        self.menu2.Append(205, '업데이트')
+        self.menu2.Append(204, '정보')
         self.menuBar.Append(self.menu2, '  도움말  ')
         self.SetMenuBar(self.menuBar)
 
@@ -1111,9 +1057,9 @@ class VideoDownloader(wx.Frame):
         st = wx.StaticText(pn, -1, "동영상 URL", size=(70, -1))
         self.txtURL = txtURL = wx.TextCtrl(pn, -1, '')
         self.btnPaste = btnPaste = wx.Button(pn, -1, '⇋', size=(25, 25))
-        btnPaste.SetToolTip('매크로 실행 => "동영상URL 복붙" 및 "분석"')
+        btnPaste.SetToolTip('매크로 실행 => "동영상URL 복붙" 및 "정보 추출"')
         btnPaste.SetBackgroundColour((255, 255, 255))
-        self.btnAnalyze = btnAnalyze = wx.Button(pn, -1, '분석')
+        self.btnExtract = btnExtract = wx.Button(pn, -1, '정보 추출')
         self.status = status = wx.StaticText(pn, -1, '', size=(-1, 30))
         self.btnOpenDir = btnOpenDir = wx.Button(pn, -1, '폴더 열기')
         self.btnOpen = btnOpen = wx.Button(pn, -1, '재생')
@@ -1182,7 +1128,7 @@ class VideoDownloader(wx.Frame):
         bsizer.Add(st, 0, wx.LEFT | wx.TOP, 10)
         bsizer.Add(txtURL, 1, wx.LEFT | wx.TOP | wx.BOTTOM, 5)
         bsizer.Add(btnPaste, 0, wx.TOP, 4)
-        bsizer.Add(btnAnalyze, 0, wx.LEFT | wx.TOP | wx.BOTTOM, 5)
+        bsizer.Add(btnExtract, 0, wx.LEFT | wx.TOP | wx.BOTTOM, 5)
         inner = wx.BoxSizer()
         inner.Add(bsizer, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 5)
 
@@ -1198,7 +1144,6 @@ class VideoDownloader(wx.Frame):
         self.inner2 = inner2 = wx.BoxSizer(wx.VERTICAL)
         inner2.Add(inner2_2, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 5)
         inner2.Add(inner2_1, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 5)
-        # dvlc_3_label = '다운로드 및 후처리:리먹싱(=>MP4)' if self.config["remuxing"] else '다운로드'
         box = wx.StaticBox(pn, -1, '다운로드')
         self.bsizer3 = bsizer3 = wx.StaticBoxSizer(box, wx.HORIZONTAL)
         bsizer3.Add(dvlc_3, 0, wx.ALL, 5)
@@ -1248,7 +1193,6 @@ class VideoDownloader(wx.Frame):
 
         inner2_1.Hide(btnOpenDir)
         inner2_1.Hide(btnOpen)
-        #inner2.Hide(inner2_2)
         sizer.Hide(inner3)
         sizer.Hide(inner4)
 
@@ -1257,11 +1201,12 @@ class VideoDownloader(wx.Frame):
         self.Bind(wx.EVT_MENU, self.onremux, id=111)
         self.Bind(wx.EVT_MENU, self.onclose, id=109)
         self.Bind(wx.EVT_MENU, self.onupdate_ytdlp, id=203)
+        self.Bind(wx.EVT_MENU, self.onupdate_kdownloader, id=205)
         self.Bind(wx.EVT_MENU, self.onabout, id=204)
         self.Bind(wx.EVT_CLOSE, self.onwindow_close)
         txtURL.Bind(wx.EVT_TEXT, self.oncheck_url)
         btnPaste.Bind(wx.EVT_BUTTON, self.onpaste_it)
-        btnAnalyze.Bind(wx.EVT_BUTTON, self.onanalyze)
+        btnExtract.Bind(wx.EVT_BUTTON, self.onextract)
         btnOpenDir.Bind(wx.EVT_BUTTON, self.onopen_dir2)
         btnOpen.Bind(wx.EVT_BUTTON, self.onopen_file)
         btnAbort.Bind(wx.EVT_BUTTON, self.onabort)
@@ -1279,23 +1224,22 @@ class VideoDownloader(wx.Frame):
         self.Bind(wx.EVT_CHAR_HOOK, self.onkey)
         evt_result(self, self.onresult)
 
-        txtURL.SetValue(URL)
         for proc in psutil.process_iter(['pid', 'name']):
             if proc.info['name'] == 'explorer.exe':
-                self.pids_explorer_init.append(proc.info['pid'])
+                self.pids_explorer_existing.append(proc.info['pid'])
 
         self.ytdlp_current_version = get_version_number(YT_DLP_PATH)
-        wx.CallLater(1, self.check_version_latest, 'yt-dlp')
-        wx.CallLater(1000, self.check_version_latest, 'k-downloader')
+        wx.CallLater(1, self.check_version_latest, 'ytdlp')
+        wx.CallLater(1000, self.check_version_latest, 'kdownloader')
 
     def onkey(self, evt):
         obj = wx.Window.FindFocus()
         if evt.GetKeyCode() == wx.WXK_RETURN:
             if self.txtURL.HasFocus():
-                if self.worker or self.worker2 or self.worker3:
-                    self.onabort()
+                if self.worker or self.worker2 or self.worker3 or self.worker4 or self.worker5:
+                    self.onabort(evt)
                 else:
-                    self.onanalyze()
+                    self.onextract()
             elif obj.ClassName in ['wxDataViewMainWindow', 'wxCheckBox']:
                 self.ondownload()
             else:
@@ -1304,6 +1248,7 @@ class VideoDownloader(wx.Frame):
             evt.Skip()
 
     def check_version_latest(self, arg=None):
+        self.task = 'checkversion'
         self.worker4 = WorkerThread4(self, arg)
         self.worker4.daemon = True
         self.worker4.start()
@@ -1354,31 +1299,41 @@ class VideoDownloader(wx.Frame):
     def oncheck_url(self, evt):
         if self.txtURL.GetValue().strip() == '':
             self.btnPaste.Disable()
-            self.btnAnalyze.Disable()
+            self.btnExtract.Disable()
         else:
             self.btnPaste.Enable()
-            self.btnAnalyze.Enable()
+            self.btnExtract.Enable()
 
     def onabort(self, evt=None):
+        self.status.SetLabel('취소 중...')
         if self.worker:
-            self.status.SetLabel('취소 중...')
-            self.worker.abort()
+            self.worker.abort(evt)
 
-        if self.worker2:
-            self.status.SetLabel('취소 중...')
+        elif self.worker2:
             self.worker2.abort()
 
-        if self.worker3:
-            self.status.SetLabel('취소 중...')
+        elif self.worker3:
             self.worker3.abort()
+
+        elif self.worker4:
+            self.worker4.abort()
+
+        elif self.worker5:
+            self.worker5.abort()
+
 
     def onpaste_it(self, evt):
         text = clipboard.paste()
         self.txtURL.SetValue(text)
-        self.btnAnalyze.SetFocus()
-        self.onanalyze()
+        self.btnExtract.SetFocus()
+        self.onextract()
 
-    def onanalyze(self, evt=None):
+    def onextract(self, evt=None):
+        if not self.txtURL.GetValue():
+            wx.MessageBox('동영상 URL을 입력하세요.', TITLE, style=wx.ICON_WARNING)
+            self.txtURL.SetFocus()
+            return
+
         self.dvlc.DeleteAllItems()
         self.dvlc_2.DeleteAllItems()
         self.dvlc_3.DeleteAllItems()
@@ -1386,9 +1341,9 @@ class VideoDownloader(wx.Frame):
         self.row_2nd = -1
         self.last_sel = (-1, -1)
 
-        self.set_controls('analyze')
+        self.set_controls('extract')
 
-        self.task = 'analyze'
+        self.task = 'extract'
         self.wtxt = ''
         self.L3 = None
         self.L3_2 = None
@@ -1400,65 +1355,62 @@ class VideoDownloader(wx.Frame):
         self.worker.start()
 
     def onresult(self, evt):
-        if self.task in ['analyze', 'download']:
+        if self.task in ['extract', 'download']:
             self.worker = None
 
         elif self.task == 'remux':
             self.worker2 = None
 
-        elif self.task in ['yt-dlp', 'k-downloader']:
+        elif self.task == 'ytdlp':
             self.worker3 = None
 
+        elif self.task == 'checkversion':
+            self.worker4 = None
+
+        elif self.task == 'kdownloader':
+            self.worker5 = None
+
         self.btnAbort.Disable()
-        self.btnAnalyze.Enable()
+        self.btnExtract.Enable()
         self.dvlc.Enable()
         self.dvlc_2.Enable()
 
         if evt.data:
             self.restore_controls(self.task)
-            if evt.data in ['analyze-cancelled', 'analyze-cancelled2']:
+            if evt.data in ['extract-cancelled', 'extract-cancelled2']:
                 self.gauge.SetValue(0)
-                msg = '분석 취소되었습니다.'
+                msg = '정보 추출이 취소되었습니다.'
                 self.status.SetLabel(msg)
-                self.cancelled = True
-                arg = 1 if evt.data == 'analyze-cancelled2' else None
+                arg = 1 if evt.data == 'extract-cancelled2' else None
                 self.killtask(msg, arg)
-                # self.restore_controls(self.task)
                 self.sizer.Hide(self.inner3)
                 self.sizer.Hide(self.inner4)
+                self.txtURL.SelectAll()
 
             elif evt.data in ['download-cancelled', 'download-cancelled2']:
                 self.gauge.SetValue(0)
-                msg = '다운로드 취소되었습니다.'
+                msg = '다운로드가 취소되었습니다.'
                 self.status.SetLabel(msg)
-                self.cancelled = True
                 arg = 1 if evt.data == 'download-cancelled2' else None
                 self.killtask(msg, arg)
-                # self.restore_controls(self.task)
 
             elif evt.data == 'remux-cancelled':
                 self.gauge.SetValue(0)
-                msg = '리먹싱 취소되었습니다.'
+                msg = '리먹싱이 취소되었습니다.'
                 self.status.SetLabel(msg)
-                self.cancelled = True
                 self.killtask(msg)
-                # self.restore_controls(self.task)
 
-            elif evt.data in ['yt-dlp-cancelled', 'k-downloader-cancelled']:
+            elif evt.data in ['ytdlp-cancelled', 'kdownloader-cancelled']:
                 self.gauge.SetValue(0)
-                msg = 'yt-dlp 업데이트 취소되었습니다.' if self.task == 'yt-dlp' \
-                    else 'K-Downloader 설치파일 다운로드 취소되었습니다.'
+                msg = 'yt-dlp 업데이트가 취소되었습니다.' if self.task == 'ytdlp' \
+                    else f'{TITLE} 설치파일 다운로드가 취소되었습니다.'
                 self.status.SetLabel(msg)
-                self.cancelled = True
                 self.killtask(msg)
-                # self.restore_controls(self.task)
 
-            elif evt.data == 'analyze-finished':
-                # self.restore_controls(self.task)
+            elif evt.data == 'extract-finished':
                 self.display_formats('table')
 
             elif evt.data == 'download-finished':
-                # self.restore_controls(self.task)
                 if self.no_ffmpeg:
                     self.status.SetLabel(f'[비디오·오디오 합치기] FFmpeg 설치되어 있지 않음. 합치기 실패.')
                     self.gauge.SetValue(0)
@@ -1481,7 +1433,6 @@ class VideoDownloader(wx.Frame):
                 if os.path.isfile(file_origin):
                     os.remove(file_origin)
 
-                # self.restore_controls(self.task)
                 self.gauge.SetValue(self.gauge.GetRange())
                 filename = os.path.split(self.outfile)[1]
                 self.status.SetLabel(f'[리먹싱 완료] {filename}')
@@ -1492,24 +1443,29 @@ class VideoDownloader(wx.Frame):
                 self.inner2.Layout()
                 self.onopen_dir2()
 
-            elif evt.data == 'yt-dlp-finished':
-                # self.restore_controls(self.task)
+            elif evt.data == 'checkversion-finished':
+                self.onupdate_kdownloader()
                 pass
 
-            elif evt.data == 'k-downloader-finished':
-                # self.restore_controls(self.task)
-                self.btnOpen.Enable(self.task != 'k-downloader')
-                if self.task == 'k-downloader':
+            elif evt.data == 'checkversion-cancelled':
+                pass
+
+            elif evt.data == 'ytdlp-finished':
+                pass
+
+            elif evt.data == 'kdownloader-finished':
+                self.btnOpen.Enable(self.task != 'kdownloader')
+                if self.task == 'kdownloader':
                     self.gauge.SetValue(self.gauge.GetRange())
                     filename = os.path.split(self.outfile)[1]
-                    self.status.SetLabel(f'[K-Downloader 설치파일 다운로드 완료] {filename}')
+                    self.status.SetLabel(f'[{TITLE} 설치파일 다운로드 완료] {filename}')
                     self.btnOpenDir.Show()
                     self.btnOpen.Show()
                     self.inner2.Layout()
-                    message = f'설치작업을 위해 이 프로그램을 종료합니다. 진행할까요? \n\n' \
-                              f'현재 버전: {VERSION}\n\n최신 버전: {self.kdownloader_latest_version}'
+                    message = f'업데이트를 진행하려면 일단 프로그램을 닫은 후 설치파일을 실행해야 합니다. 계속 할까요?\n\n' \
+                              f'설치파일: {self.outfile}'
 
-                    with wx.MessageDialog(self, message, TITLE,
+                    with wx.MessageDialog(self, message, f'{TITLE} 업데이트',
                                           style=wx.YES_NO | wx.ICON_QUESTION) as messageDialog:
                         if messageDialog.ShowModal() == wx.ID_YES:
                             self.Close()
@@ -1537,7 +1493,7 @@ class VideoDownloader(wx.Frame):
                 self.gauge.SetValue(0)
                 msg = f'[{self.host}] {self.cur_video["id"]} : 라이브 스트리밍 중...'
                 self.status.SetLabel(msg)
-                self.restore_controls('analyze')
+                self.restore_controls('extract')
                 self.sizer.Hide(self.inner3)
                 self.sizer.Hide(self.inner4)
                 message_ = f'라이브 스트리밍 중...\n\n[{self.host}] {self.cur_video["id"]} :\n{self.cur_video["title"]}'
@@ -1546,7 +1502,7 @@ class VideoDownloader(wx.Frame):
 
             self.lines = []
             self.pos = {}
-            self.analyze_data()
+            self.extract_data()
 
             mylist = []
             print(
@@ -1581,10 +1537,8 @@ class VideoDownloader(wx.Frame):
                 url = self.get_video_url(self.formats_data['json-string'], l[0])
                 l2.append(url)
                 l += l2
-                # print(l)
                 mylist.append(l)
 
-            # print(mylist)
             self.L3 = L3 = []
             self.L3_2 = L3_2 = []
 
@@ -1617,37 +1571,29 @@ class VideoDownloader(wx.Frame):
                     print("v protocol:http or https", l)
                     mylist2.append(l)
 
-            # if not mylist2:
-            if True:
-                for l in mylist:
-                    if self.host == 'youtube':
-                        if l[1] in ['mp4', 'webm'] and l[7] == 'm3u8' and l[
-                            14] == 'O':  # 1=>ext, 7=>proto, 14=>video(O/X), 15=>audio(O/X)
-                            print("v protocol:m3u8", l)
-                            mylist2.append(l)
-                        """
-                        if l[1] in ['mp4', 'webm'] and l[7] == 'm3u8' and l[14] == 'O' and l[15] == 'O':   # 1=>ext, 7=>proto, 14=>video(O/X), 15=>audio(O/X)
-                            print("v protocol:m3u8", l)
-                            mylist2.append(l)
-                        """
-                    elif self.host == 'vimeo':
-                        if 'fastly' in l[0]:
-                            if l[1] in ['mp4', 'webm'] and l[7] == 'm3u8' and l[
-                                14] == 'O':  # 1=>ext, 7=>proto, 14=>video(O/X)
-                                print("v protocol:m3u8", l)
-                                mylist2.append(l)
-                    else:
+            for l in mylist:
+                if self.host == 'youtube':
+                    if l[1] in ['mp4', 'webm'] and l[7] == 'm3u8' and l[
+                        14] == 'O':  # 1=>ext, 7=>proto, 14=>video(O/X), 15=>audio(O/X)
+                        print("v protocol:m3u8", l)
+                        mylist2.append(l)
+
+                elif self.host == 'vimeo':
+                    if 'fastly' in l[0]:
                         if l[1] in ['mp4', 'webm'] and l[7] == 'm3u8' and l[
                             14] == 'O':  # 1=>ext, 7=>proto, 14=>video(O/X)
                             print("v protocol:m3u8", l)
                             mylist2.append(l)
-
-            # if not mylist2:
-            if True:
-                for l in mylist:
-                    if l[1] in ['mp4', 'webm'] and l[7] == 'dash' and l[14] == 'O':  # 1=>ext, 7=>proto, 14=>video(O/X)
-                        print("v protocol:dash", l)
+                else:
+                    if l[1] in ['mp4', 'webm'] and l[7] == 'm3u8' and l[
+                        14] == 'O':  # 1=>ext, 7=>proto, 14=>video(O/X)
+                        print("v protocol:m3u8", l)
                         mylist2.append(l)
+
+            for l in mylist:
+                if l[1] in ['mp4', 'webm'] and l[7] == 'dash' and l[14] == 'O':  # 1=>ext, 7=>proto, 14=>video(O/X)
+                    print("v protocol:dash", l)
+                    mylist2.append(l)
 
             if mylist2:
                 mylist2.sort(key=lambda col: (
@@ -1657,7 +1603,6 @@ class VideoDownloader(wx.Frame):
                 col[3], col[6], col[5]), reverse=True)  # 1=> exp, 2=>resolution, 3=>fps, 5=>filesize, 6=>tbr, 7=> proto
                 L3 += mylist2
 
-            # print(L3)
             no_audio = False
             for l in L3:
                 if l[15] == 'X':
@@ -1709,12 +1654,10 @@ class VideoDownloader(wx.Frame):
                                 print("a protocol:m3u8", l)
                                 mylist2.append(l)
 
-                # if not mylist2:
-                if True:
-                    for l in mylist:
-                        if l[1] == 'm4a' and l[7] == 'dash' and l[15] == 'O':  # 1=>ext, 7=>proto, 15=>audio(O/X)
-                            print("a protocol:dash", l)
-                            mylist2.append(l)
+                for l in mylist:
+                    if l[1] == 'm4a' and l[7] == 'dash' and l[15] == 'O':  # 1=>ext, 7=>proto, 15=>audio(O/X)
+                        print("a protocol:dash", l)
+                        mylist2.append(l)
 
                 if mylist2:
                     mylist2.sort(key=lambda col: (2 if col[7] in ['http', 'https'] else (1 if col[7] == 'm3u8' else 0),
@@ -1726,11 +1669,10 @@ class VideoDownloader(wx.Frame):
             for l in L3:
                 l = [f'{l[2]} ( {l[1]}, {l[6].strip()} )', l[5]] if l[6] else [f'{l[2]} ( {l[1]} )', l[
                     5]]  # 1=>ext, 2=>resolution, 5=>filesize, 6=>tbr
-                # print(l)
                 self.dvlc.AppendItem(l)
 
             self.dvlc.Layout()
-            msg = f'[분석 완료] {self.cur_video["id"]}: {self.cur_video["title"]}'
+            msg = f'[정보 추출 완료] {self.cur_video["id"]}: {self.cur_video["title"]}'
             self.status.SetLabel(msg)
             self.gauge.SetValue(self.gauge.GetRange())
 
@@ -1786,7 +1728,7 @@ class VideoDownloader(wx.Frame):
         url = data[index3 + 1:index4]
         return url
 
-    def analyze_data(self):
+    def extract_data(self):
         self.lines = self.formats_data['table']
 
         self.pos = {}
@@ -1912,9 +1854,6 @@ class VideoDownloader(wx.Frame):
                     if min_pos != 1000:
                         self.pos['ASR'][0] = self.pos['ABR'][1] + min_pos
 
-        # for key in keys:
-        #     print(key, self.pos[key])
-
     def dvlc_init(self):
         self.dvlc.SelectRow(0)
         wx.CallLater(1, self.sel_format)
@@ -1953,7 +1892,6 @@ class VideoDownloader(wx.Frame):
             self.dvlc.SetValue(val, row, 0)
             self.cur_video['format'][0 if self.L3[row][8] else 1] = self.L3[row][0]
             self.dvlc_3.DeleteAllItems()
-            # print('self.L3[row] =>', self.L3[row])
             items = ['ID', '확장자', '해상도', '초당 프레임 수', '채널 수', '파일 크기',
                      '총 비트 전송률', '프로토콜', '비디오 코덱', '비디오 비트 전송률', '오디오 코덱',
                      '오디오 비트 전송률', '오디오 샘플 속도', '기타', '영상', '음성']
@@ -1998,7 +1936,6 @@ class VideoDownloader(wx.Frame):
                 if i == 12 and self.host not in ['ebs']:
                     val = val if val else ''
 
-                # print(i, items[i], f"'{val}'")
                 self.dvlc_3.AppendItem([items[i], val.strip()])
 
             self.inner3.Show(self.bsizer3)
@@ -2074,35 +2011,11 @@ class VideoDownloader(wx.Frame):
                     self.cbRemux_visible = True
                     self.btnHelp3.Show()
 
-            # print(ext_)
             self.dvlc_3.SetValue(ext_, 0, 1)
-
-            # print('self.L3[self.row_1st] =>', self.L3[self.row_1st])
-            # print('self.L4[row]          =>', self.L4[row])
 
             # 파일 크기
             self.total_size_in_dvlc_3()
-            """
-            video_filesize = float(self.L3[self.row_1st][5].strip()[:-3].replace('~', ''))
-            if self.L3[self.row_1st][5].strip()[-3:] == 'KiB':
-                video_filesize = video_filesize / 1024
 
-            audio_filesize = 0
-            if self.L4[row][3].strip():
-                # self.L4: 0=>id, 1=>ext, 2=>ch, 3=>filesize, 4=>acodec, 5=>abr, 6=>asr, 7=>url, 8=>proto
-                # print('self.L4[row] =>', self.L4[row])
-
-                if self.L4[row][3].strip()[-1:] == 'k':
-                    audio_filesize = float(self.L4[row][3].strip()[:-1].replace('~', ''))
-
-                elif self.L4[row][3].strip()[-3:] == 'MiB':
-                    audio_filesize = float(self.L4[row][3].strip()[:-3].replace('~', ''))
-
-                total_size = round(video_filesize + audio_filesize, 2)
-                # print(f'{video_filesize}(비디오) + {audio_filesize}(오디오) = {total_size}(합계)')
-
-                self.dvlc_3.SetValue(f'{total_size}MiB', 4, 1)
-            """
             # 채널 수
             self.dvlc_3.SetValue(self.L4[row][2].strip(), 3, 1)
 
@@ -2225,7 +2138,7 @@ class VideoDownloader(wx.Frame):
 
     def ondownload(self, evt=None):
         if is_running(f'{YT_DLP}'):
-            message = 'K-Downloader(중복 실행)에서 다운로드 진행 중입니다.\n\n다운로드를 중지하거나 다운로드 완료 후 다시 시도해주세요.'
+            message = f'{TITLE}(중복 실행)에서 다운로드 진행 중입니다.\n\n다운로드를 중지하거나 다운로드 완료 후 다시 시도해주세요.'
             wx.MessageBox(f'{message}', TITLE, style=wx.ICON_WARNING)
             return
 
@@ -2260,8 +2173,6 @@ class VideoDownloader(wx.Frame):
         vbr_ = f', vbr{vbr}'
         abr_ = f', abr{abr_2}' if abr_2 else f', abr{abr}'
         drc_ = ' drc' if drc.endswith('-drc') else ''
-        # 띄어쓰기 연속 두 번 있는 경우엔 한 번으로 치환
-        # filebase = f'{self.cur_video["title"].replace("  ", " ")} [{self.cur_video["id"]}] ({resolution}{vbr_}{abr_}{drc_})'
         if self.dvlc_2.IsEnabled():
             filebase = f'{self.cur_video["title"]} [{self.cur_video["id"]}] ({resolution}{vbr_}{abr_}{drc_})'
         else:
@@ -2272,8 +2183,6 @@ class VideoDownloader(wx.Frame):
             else:
                 filebase = f'{self.cur_video["title"]} [{self.cur_video["id"]}] ({resolution})'
 
-        # files = [f for f in os.listdir(self.config["download-dir"])
-        #          if os.path.isfile(os.path.join(self.config["download-dir"], f))]
         filename = f'{filebase}.{ext}'
 
         # Windows 파일명에 금지됝 문자들 제거: \ / : * ? " < > |
@@ -2282,7 +2191,7 @@ class VideoDownloader(wx.Frame):
         filename_ = re.sub('\|', '│', filename_)
         filename_ = re.sub('/', '⧸', filename_)
         filename_ = re.sub(r'[\\:*<>]', '', filename_)
-        # 한글에서 사용하는 따옴표(“”, ‘’)는 ＂, '로 바꿈:
+        # 한글(HWP)에서 사용하는 따옴표(“”, ‘’)는 ＂, '로 바꿈:
         filename_ = re.sub('[“”]', '＂', filename_)
         filename_ = re.sub("[‘’]", "'", filename_)
         # 띄어쓰기 연속 두 번 이상의 경우엔 한 번으로 바꿈
@@ -2305,14 +2214,6 @@ class VideoDownloader(wx.Frame):
 
         self.set_controls('download')
 
-        """
-        # 한글의 여는 큰따옴표 및 닫는 큰따옴표 처리
-        filename_ = re.sub(r'“', '\'', filename_)
-        filename_ = re.sub(r'”', '\'', filename_)
-        # 한글의 여는 작은따옴표 및 닫는 작은따옴표 처리
-        filename_ = re.sub(r'‘', '\'', filename_)
-        filename_ = re.sub(r'’', '\'', filename_)
-        """
         self.cur_video['ext'] = ext if self.task == 'download' else 'mp4'
         self.no_ffmpeg = False
 
@@ -2339,11 +2240,11 @@ class VideoDownloader(wx.Frame):
         self.control_state['btnOpenDir.IsShown'] = self.btnOpenDir.IsShown()
         self.control_state['btnOpen.IsShown'] = self.btnOpen.IsShown()
         self.control_state['btnAbort.IsEnabled'] = self.btnAbort.IsEnabled()
-        self.control_state['btnAnalyze.IsEnabled'] = self.btnAnalyze.IsEnabled()
+        self.control_state['btnExtract.IsEnabled'] = self.btnExtract.IsEnabled()
         self.control_state['btnDownload.IsEnabled'] = self.btnDownload.IsEnabled()
         self.control_state['cbRemux.IsEnabled'] = self.cbRemux.IsEnabled()
 
-        if arg == 'analyze':
+        if arg == 'extract':
             self.control_state['inner3.IsShown'] = self.sizer.IsShown(self.inner3)
             self.control_state['inner4.IsShown'] = self.sizer.IsShown(self.inner4)
             self.control_state['btnPreview.IsEnabled'] = self.btnPreview.IsEnabled()
@@ -2355,7 +2256,7 @@ class VideoDownloader(wx.Frame):
             self.control_state['btnUnselect.IsEnabled'] = self.btnUnselect.IsEnabled()
 
     def set_controls(self, arg=None):
-        if arg == 'analyze':
+        if arg == 'extract':
             self.btnPreview.Disable()
             self.btnPreview2.Disable()
             self.btnOpenDir.Hide()
@@ -2368,10 +2269,11 @@ class VideoDownloader(wx.Frame):
             self.dvlc_2.Disable()
             self.btnUnselect.Disable()
 
-        elif arg in ['yt-dlp', 'k-downloader']:
+        elif arg in ['ytdlp', 'kdownloader']:
             self.menuBar.Enable(101, False)
             self.menuBar.Enable(111, False)
             self.menuBar.Enable(203, False)
+            self.menuBar.Enable(205, False)
 
         self.save_controls(arg)
         self.sizer.Show(self.inner2)
@@ -2379,7 +2281,7 @@ class VideoDownloader(wx.Frame):
         self.btnOpenDir.Hide()
         self.btnOpen.Hide()
         self.btnAbort.Enable()
-        self.btnAnalyze.Disable()
+        self.btnExtract.Disable()
         self.btnDownload.Disable()
         self.cbRemux.Disable()
 
@@ -2388,16 +2290,17 @@ class VideoDownloader(wx.Frame):
         self.btnOpenDir.Show(self.control_state['btnOpenDir.IsShown'])
         self.btnOpen.Show(self.control_state['btnOpen.IsShown'])
         self.btnAbort.Enable(self.control_state['btnAbort.IsEnabled'])
-        self.btnAnalyze.Enable(self.control_state['btnAnalyze.IsEnabled'])
+        self.btnExtract.Enable(self.control_state['btnExtract.IsEnabled'])
         self.btnDownload.Enable(self.control_state['btnDownload.IsEnabled'])
         self.cbRemux.Enable(self.control_state['cbRemux.IsEnabled'])
 
-        if arg == 'analyze':
+        if arg == 'extract':
             self.sizer.Show(self.inner3, self.control_state['inner3.IsShown'])
             self.sizer.Show(self.inner4, self.control_state['inner4.IsShown'])
             self.btnPreview.Enable(self.control_state['btnPreview.IsEnabled'])
             self.btnPreview2.Enable(self.control_state['btnPreview2.IsEnabled'])
             self.btnDownload.Disable()
+            self.txtURL.SetFocus()
 
         elif arg in ['download', 'remux']:
             self.dvlc.Enable()
@@ -2410,35 +2313,10 @@ class VideoDownloader(wx.Frame):
             elif self.cur_dvlc == 2:
                 self.dvlc_2.SetFocus()
 
-        elif arg in ['yt-dlp', 'k-downloader']:
+        elif arg in ['ytdlp', 'kdownloader']:
             self.menuBar.Enable(101, True)
             self.menuBar.Enable(111, True)
             self.menuBar.Enable(203, True)
-
-    """
-    def resetControls(self):
-        self.btnAbort.Disable()
-        self.btnAnalyze.Enable()
-        self.dvlc.Enable()
-        self.dvlc_2.Enable()
-        if self.task == 'analyze':
-            self.btnAnalyze.SetFocus()
-
-        elif self.task == 'download':
-            # self.resetControls2()
-            self.btnDownload.SetFocus()
-
-        self.status.SetLabel('')
-
-    def resetControls2(self):
-        self.dvlc.Enable()
-        self.dvlc_2.Enable()
-        if self.dvlc_2.GetSelectedRow() != -1:
-            self.btnUnselect.Enable()
-
-        self.btnDownload.Enable()
-        self.cbRemux.Enable()
-    """
 
     def onremux(self, evt):
         wildcard = '동영상 (*.mkv;*.webm;*.m3u8;*.mov;*.avi;*.wmv)|' \
@@ -2475,11 +2353,11 @@ class VideoDownloader(wx.Frame):
             return
 
         if self.ytdlp_current_version == self.ytdlp_latest_version:
-            message = f'yt-dlp 현재 버전은 최신 버전입니다.\n\n최신 버전: {self.ytdlp_latest_version}'
+            message = f'yt-dlp 최신 버전 사용 중입니다.\n\n최신 버전: {self.ytdlp_latest_version}'
             wx.MessageBox(message, TITLE)
             return
         else:
-            self.update_notify = True
+            self.update_notify_ytdlp = True
             message = f'yt-dlp 최신 버전이 있습니다. 업데이트할까요?\n\n' \
                       f'현재 버전: {self.ytdlp_current_version}\n\n최신 버전: {self.ytdlp_latest_version}'
 
@@ -2488,7 +2366,7 @@ class VideoDownloader(wx.Frame):
                 if messageDialog.ShowModal() == wx.ID_YES:
                     if self.worker or self.worker2:
                         task = ''
-                        if self.task == 'analyze':
+                        if self.task == 'extract':
                             task = '분석이'
                         elif self.task == 'download':
                             task = '다운로드가'
@@ -2499,10 +2377,47 @@ class VideoDownloader(wx.Frame):
                         wx.MessageBox(message, TITLE, style=wx.ICON_WARNING)
                         return
 
-                    self.task = 'yt-dlp'
+                    self.task = 'ytdlp'
                     self.worker3 = WorkerThread3(self)
                     self.worker3.daemon = True
                     self.worker3.start()
+
+    def onupdate_kdownloader(self, evt=None):
+        if self.worker5:
+            message = f'{TITLE} 업데이트 중입니다.\n\n' \
+                      f'현재 버전: {VERSION}\n\n최신 버전: {self.kdownloader_latest_version}'
+            wx.MessageBox(message, TITLE, style=wx.ICON_WARNING)
+            return
+
+        if VERSION == self.kdownloader_latest_version:
+            message = f'{TITLE} 최신 버전 사용 중입니다.\n\n최신 버전: {self.kdownloader_latest_version}'
+            wx.MessageBox(message, TITLE)
+            return
+        else:
+            self.update_notify_kdownloader = True
+            message = f'{TITLE} 최신 버전이 있습니다. 업데이트할까요?\n\n' \
+                      f'현재 버전: {VERSION}\n\n최신 버전: {self.kdownloader_latest_version}'
+
+            with wx.MessageDialog(self, message, TITLE,
+                                  style=wx.YES_NO | wx.ICON_INFORMATION) as messageDialog:
+                if messageDialog.ShowModal() == wx.ID_YES:
+                    if self.worker or self.worker2:
+                        task = ''
+                        if self.task == 'extract':
+                            task = '분석이'
+                        elif self.task == 'download':
+                            task = '다운로드가'
+                        elif self.task == 'remux':
+                            task = '리먹싱이'
+
+                        message = f'{task} 끝난 후에 업데이트를 진행해주세요.\n\n '
+                        wx.MessageBox(message, TITLE, style=wx.ICON_WARNING)
+                        return
+
+                    self.task = 'kdownloader'
+                    self.worker5 = WorkerThread3(self)
+                    self.worker5.daemon = True
+                    self.worker5.start()
 
     @staticmethod
     def en2ko(s):
@@ -2550,7 +2465,6 @@ class VideoDownloader(wx.Frame):
             video_size_kib = video_size * 1024
         elif video_unit == 'KiB':
             video_size_kib = video_size
-        # print('video_size_kib =>', video_size_kib)
 
         if self.L3[self.row_1st][15] == 'X':
             flag = '~' if ('~' in self.L3[self.row_1st][5] or '~' in self.L4[self.row_2nd][3]) else ''
@@ -2563,52 +2477,31 @@ class VideoDownloader(wx.Frame):
                 audio_size_kib = audio_size * 1024
             elif audio_unit == 'KiB':
                 audio_size_kib = audio_size
-            # print('audio_size_kib =>', audio_size_kib)
 
             total_size_kib = video_size_kib + audio_size_kib
+
         else:
             flag = '~' if '~' in self.L3[self.row_1st][5] else ''
             total_size_kib = video_size_kib
 
-        # print('total_size_kib =>', total_size_kib)
-
         if total_size_kib >= 1048576:
             unit = 'GiB'
             total_size = f'{round(total_size_kib / 1048576, 2):.2f}'
+
         elif total_size_kib >= 1024:
             unit = 'MiB'
             total_size = f'{round(total_size_kib / 1024, 2):.2f}'
+
         else:
             unit = 'KiB'
             total_size = f'{round(total_size_kib, 2):.2f}'
-        # print('total_size =>', total_size)
 
         self.dvlc_3.SetValue(f'{flag}{total_size}{unit}', 4, 1)
 
     def onabout(self, evt):
         dlg = Help(self, 9)
         dlg.ShowModal()
-        dlg.Destroy()
 
-        """
-        ytdlp_version = self.ytdlp_current_version
-        message = f'{TITLE}\n버전 {VERSION}\n \n' \
-                  f'yt-dlp {ytdlp_version}\nFFmpeg {FFMPEG2}\nwxPython {WXPYTHON}\nPython {PYTHON}\nPyInstaller {PYINSTALLER}\n \nHS Kang'
-        wx.MessageBox(message, TITLE, wx.ICON_INFORMATION | wx.OK)
-        """
-
-    """
-    @staticmethod
-    def restart_program():
-        print('restart_program')
-        args = sys.argv[:]
-        args.insert(0, sys.executable)
-        if sys.platform == 'win32':
-            args = [f'"{arg}"' for arg in args]
-
-        os.execv(sys.executable, args)
-    """
-    
     def onclose(self, evt):
         self.Close()
 
@@ -2635,24 +2528,18 @@ class VideoDownloader(wx.Frame):
                     print(e)
 
         if self.proc:
-            Popen(f'TASKKILL /F /PID {self.proc.pid} /T', creationflags=0x08000000)
+            Popen(f'TASKKILL /F /PID {self.proc.pid} /T'.split(), creationflags=0x08000000)
 
-        for proc in psutil.process_iter(['pid', 'name']):
-            if proc.info['name'] == YT_DLP:
+        procs = [proc for proc in psutil.process_iter(['name', 'pid'])
+                 if proc.info['name'] in ['explorer.exe', YT_DLP]]
+        for proc in procs:
+            if  proc.info['pid'] not in self.pids_explorer_existing:
                 try:
                     proc.terminate()
                 except Exception as e:
                     print(e)
 
-            elif proc.info['name'] == 'explorer.exe' and proc.info['pid'] not in self.pids_explorer_init:
-                print('>>>', proc.info['name'], proc.info['pid'])
-                try:
-                    proc.terminate()
-                except Exception as e:
-                    print(e)
 
-
-# -------------------------------------------------------------------------------------------------------------------
 if __name__ == '__main__':
     app = wx.App()
     frame = VideoDownloader()
