@@ -5,16 +5,15 @@
 
 <p><strong>버전</strong>: 
 <br>2024.09.09
-<p><strong>사용된 소프트웨어</strong>: 
-<p>- <a href="https://github.com/yt-dlp/yt-dlp">yt-dlp</a> 2024.08.06<br>
+<p><strong>사용된 소프트웨어</strong>:<br>
+- <a href="https://github.com/yt-dlp/yt-dlp">yt-dlp</a> 2024.08.06<br>
 - <a href="https://www.ffmpeg.org/">FFmpeg</a> 2024-06-21-git-d45e20c37b<br>
 - <a href="https://wxpython.org/">wxPython</a> 4.2.0<br>
 - <a href="https://pyinstaller.org/">PyInstaller</a> 5.9.0<br>
 - 기타 Python용 패키지
-<p><strong>프로그래밍 언어</strong>:
-<ul>
-  <li><a href="https://www.python.org/">Python</a> 3.10.10</li>
-</ul>
+<p><strong>프로그래밍 언어</strong>:<br>
+<a href="https://www.python.org/">Python</a> 3.10.10
+
 # 설치 방법
 <ol>
   <li>우측 메뉴 중에서 "<strong>Releases</strong>"를 클릭합니다.</li>
