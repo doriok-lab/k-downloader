@@ -340,12 +340,12 @@ class WorkerThread(Thread):
     def checkproc_extract(self):
         parent = self.parent
         s = str(parent.proc.stdout.readline())
-        #print(s)
+        # print(s)
         if s == "b''":
             return
-        s = s.replace("b'", "").replace("\\r\\n'", "")
-        s = s.replace('b"', '').replace('\\r\\n"', '')
-        print(s)
+        s = (s.replace("b'", "").replace("\\r\\n'", "")
+             .replace('b"', '').replace('\\r\\n"', ''))
+        # print(s)
 
         if 'getaddrinfo failed' in s or \
             'Unable to download webpage' in s or \
@@ -504,13 +504,12 @@ class WorkerThread(Thread):
     def checkproc_download(self):
         parent = self.parent
         s = str(parent.proc.stdout.readline())
-        #print(s)
         if s == "b''":
             return
 
         s = s.replace("b'", "").replace("\\r\\n'", "")
         s = s.replace('b"', '').replace('\\r\\n"', '')
-        print(s)
+        # print(s)
         if 'getaddrinfo failed' in s or \
             'Unable to download webpage' in s:
 
@@ -2169,8 +2168,8 @@ class VideoDownloader(wx.Frame):
 
         ext = self.dvlc_3.GetValue(0, 1)
 
-        vbr_ = f', vbr{vbr}'
-        abr_ = f', abr{abr_2}' if abr_2 else f', abr{abr}'
+        vbr_ = f' vbr{vbr}'
+        abr_ = f' abr{abr_2}' if abr_2 else f' abr{abr}'
         drc_ = ' drc' if drc.endswith('-drc') else ''
         if self.dvlc_2.IsEnabled():
             filebase = f'{self.cur_video["title"]} [{self.cur_video["id"]}] ({resolution}{vbr_}{abr_}{drc_})'
@@ -2178,7 +2177,7 @@ class VideoDownloader(wx.Frame):
             if vbr and abr:
                 filebase = f'{self.cur_video["title"]} [{self.cur_video["id"]}] ({resolution}{vbr_}{abr_}{drc_})'
             elif tbr:
-                filebase = f'{self.cur_video["title"]} [{self.cur_video["id"]}] ({resolution}, tbr{tbr})'
+                filebase = f'{self.cur_video["title"]} [{self.cur_video["id"]}] ({resolution} tbr{tbr})'
             else:
                 filebase = f'{self.cur_video["title"]} [{self.cur_video["id"]}] ({resolution})'
 
