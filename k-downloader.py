@@ -46,7 +46,7 @@ VERSION = '2024.09.09'
 PYTHON = '3.10.10'
 WXPYTHON = '4.2.0'
 FFMPEG2 = '2024-06-21-git-d45e20c37b'
-PYINSTALLER = '5.9.0'
+PYINSTALLER = '5.6.2'
 
 FFMPEG = '.\\ffmpeg.exe'
 YT_DLP = 'yt-dlp.exe'
@@ -78,7 +78,7 @@ class Help(wx.Dialog):
     <br>파일 크기 55.25MiB</td>
 </tr>
 <tr>
-    <td colspan="3">- 선택 시 '오디오 추가' 목록이 나타나면 영상만 있고 <strong>음성은 없는</strong>(Video only, no audio) 것임.
+    <td colspan="3">- 선택 시 '오디오 추가' 목록이 <strong>나타나면</strong> 영상만 있고 <strong>음성은 없는</strong>(Video only, no audio) 것임.
     <br>⇒ 오디오를 추가하면 <strong>음성 있는</strong> 동영상이 생성됨.</td>
 </tr>
 </table>
@@ -93,7 +93,7 @@ class Help(wx.Dialog):
     <br>파일 크기 9.69MiB</td>
 </tr>
 <tr>
-    <td colspan="3">- 선택 시 '오디오 추가' 목록이 안 나타나면 영상과 음성 <strong>둘 다 있는</strong>(Both video and audio) 것임.</td>
+    <td colspan="3">- 선택 시 '오디오 추가' 목록이 <strong>안 나타나면</strong> 영상과 음성 <strong>둘 다 있는</strong>(Both video and audio) 것임.</td>
 </tr>
 </table>
 <hr>
@@ -107,7 +107,7 @@ class Help(wx.Dialog):
     <br>파일 크기 알 수 없음</td>
 </tr>
 <tr>
-    <td colspan="3">- 확장자가 .m3u8이면 통신 프로토콜이 <strong>HLS</strong>(HTTP 라이브 스트리밍)인 것임.</td>
+    <td colspan="3">- 확장자가 <strong>m3u8</strong>이면 통신 프로토콜이 <strong>HLS</strong>(HTTP 라이브 스트리밍)인 것임.</td>
 </tr>
 </table>
 <hr>
@@ -434,6 +434,9 @@ class WorkerThread(Thread):
 
         if '[info] Available formats' in s:
             self.table_started = True
+            return
+
+        if '[info] Testing format' in s:
             return
 
         if 'Downloading 1 format(s):' in s:
