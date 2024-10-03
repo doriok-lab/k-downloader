@@ -12,7 +12,6 @@ import wx.lib.wxpTag
 import threading
 from threading import Thread
 import os
-import sys
 import pickle
 import win32con
 import win32gui
@@ -23,7 +22,6 @@ import requests
 import clipboard
 import math
 import psutil
-
 
 TITLE = 'K-Downloader'
 
@@ -45,8 +43,8 @@ URL = 'https://www.youtube.com/watch?v=yZeNfaIK7Nw'  # 경복궁
 VERSION = '2024.09.09'
 PYTHON = '3.10.10'
 WXPYTHON = '4.2.0'
-FFMPEG2 = '2024-06-21-git-d45e20c37b'
-PYINSTALLER = '5.6.2'
+FFMPEG2 = '7.1'
+PYINSTALLER = '6.10.0'
 
 FFMPEG = '.\\ffmpeg.exe'
 YT_DLP = 'yt-dlp.exe'
@@ -62,61 +60,18 @@ class Help(wx.Dialog):
         if arg == 1:
             text += """<html><body>
 <h3>포맷 선택</h3>
-<table width="440" cellspacing="0" cellpadding="0" border="0">
-<tr>
-    <td width="170">포맷</td><td width="100">파일크기</td><td></td>
-</tr>
-</table>
-<hr>
-<table width="440" cellspacing="0" cellpadding="0" border="0">
-<tr>
-    <td width="170">1920x1012 (mp4, 3368k)</td>
-    <td width="100">55.25MiB</td>
-    <td>가로 1920px, 세로 1012px
-    <br>파일 확장자 .mp4
-    <br><strong>비디오비트전송률</strong>(=영상 비트레이트) 3368k
-    <br>파일 크기 55.25MiB</td>
-</tr>
-<tr>
-    <td colspan="3">- 선택 시 '오디오 추가' 목록이 <strong>나타나면</strong> 영상만 있고 <strong>음성은 없는</strong>(Video only, no audio) 것임.
-    <br>⇒ 오디오를 추가하면 <strong>음성 있는</strong> 동영상이 생성됨.</td>
-</tr>
-</table>
-<hr>
-<table width="440" cellspacing="0" cellpadding="0" border="0">
-<tr>
-    <td width="170">640x348 (mp4, <strong>591k</strong>)</td>
-    <td width="100">9.69MiB</td>
-    <td>가로 640px, 세로 348px
-    <br>파일 확장자 .mp4
-    <br><strong>총비트전송률</strong>(=영상+음성 비트레이트) 591k
-    <br>파일 크기 9.69MiB</td>
-</tr>
-<tr>
-    <td colspan="3">- 선택 시 '오디오 추가' 목록이 <strong>안 나타나면</strong> 영상과 음성 <strong>둘 다 있는</strong>(Both video and audio) 것임.</td>
-</tr>
-</table>
-<hr>
-<table width="440" cellspacing="0" cellpadding="0" border="0">
-<tr>
-    <td width="170">1920x1080 (<strong>m3u8</strong>, 4561k)</td>
-    <td width="100"></td>
-    <td>가로 1920px, 세로 1080px
-    <br>파일 확장자 <strong>.m3u8</strong>
-    <br>총비트전송률(=영상+음성 비트레이트) 4561k
-    <br>파일 크기 알 수 없음</td>
-</tr>
-<tr>
-    <td colspan="3">- 확장자가 <strong>m3u8</strong>이면 통신 프로토콜이 <strong>HLS</strong>(HTTP 라이브 스트리밍)인 것임.</td>
-</tr>
-</table>
+<p>- 포맷을 선택하였을 때 우측에 '오디오 추가' 목록이 <strong>나타나면</strong> 영상만 있고 <strong>소리는 없는</strong>(Video only, no audio) 것임.
+    <br>⇒ 이때의 비트레이트는 <strong>오디오만</strong>의 비트레이트임.
+<p>- 포맷을 선택하였을 때 우측에 '오디오 추가' 목록이 <strong>안 나타나면</strong> 영상과 소리 <strong>둘 다 있는</strong>(Both video and audio) 것임.</td>
+    <br>⇒ 이때의 비트레이트는 <strong>비디오+오디오를 합한</strong> 총비트레이트임.<br>
 <hr>
 <a href="https://ko.wikipedia.org/wiki/mp4">mp4</a>&nbsp;&nbsp;&nbsp;&nbsp;
 <a href="https://ko.wikipedia.org/wiki/m4a">m4a</a>&nbsp;&nbsp;&nbsp;&nbsp;
 <a href="https://ko.wikipedia.org/wiki/WebM">webm</a>&nbsp;&nbsp;&nbsp;&nbsp;
-<a href="https://ko.wikipedia.org/wiki/HTTP_라이브_스트리밍">HLS</a>&nbsp;&nbsp;&nbsp;&nbsp;
+<a href="https://ko.wikipedia.org/wiki/HTTP_라이브_스트리밍">m3u8</a>&nbsp;&nbsp;&nbsp;&nbsp;
 <a href="https://ko.wikipedia.org/wiki/GiB">GiB</a>&nbsp;&nbsp;&nbsp;&nbsp;
 <a href="https://ko.wikipedia.org/wiki/MiB">MiB</a>&nbsp;&nbsp;&nbsp;&nbsp;
+<a href="https://ko.wikipedia.org/wiki/KiB">KiB</a>&nbsp;&nbsp;&nbsp;&nbsp;
 <a href="https://ko.wikipedia.org/wiki/비트레이트">비트레이트</a><br><br>
 <a href="https://ko.wikipedia.org/wiki/8K_해상도">8K Ultra HD</a>&nbsp;&nbsp;&nbsp;&nbsp;
 <a href="https://ko.wikipedia.org/wiki/4K_해상도">4K Ultra HD</a>&nbsp;&nbsp;&nbsp;&nbsp;
@@ -125,42 +80,30 @@ class Help(wx.Dialog):
         elif arg == 2:
             text += """<html><body>
 <h3>오디오 추가</h3>
-<p>영상만 있고 <strong>음성은 없는</strong>(Video only, no audio) 포맷에 오디오 스트림을 추가합니다. 
-<p>이때, 영상파일 확장자와 음성파일 확장자가 어떤가에 따라 다운로드 파일의 확장자도 달라집니다.
+<p>영상만 있고 <strong>소리는 없는</strong>(Video only, no audio) 포맷에 오디오 스트림을 추가합니다. 
+<p>비디오파일과 추가되는 오디오파일의 확장자가 서로 다른 경우, 다운로드 파일의 확장자는 다음과 같다.
 <p>
 <table width="440" cellspacing="0" cellpadding="0" border="0">
 <tr>
     <td colspan="3"><hr></td>
 </tr>
 <tr>
-    <td width="120">영상(프로토콜)</td><td width="120">&nbsp;&nbsp;음성(프로토콜)</td><td>&nbsp;&nbsp;&nbsp;&nbsp;다운로드 파일</td>
+    <td width="120">비디오(프로토콜)</td><td width="120">&nbsp;&nbsp;오디오(프로토콜)</td><td>&nbsp;&nbsp;&nbsp;&nbsp;다운로드 파일</td>
 </tr>
 <tr>
     <td colspan="3"><hr></td>
 </tr>
 <tr>
-    <td>mp4(https)<br></td><td>+ m4a(https)<br></td><td>=> mp4<br></td>
+    <td>mp4<br></td><td>+ m4a<br></td><td>=> mp4<br></td>
 </tr>
 <tr>
     <td>mp4(https)<br></td><td>+ webm(https)<br></td><td>=> mkv<br></td>
 </tr>
 <tr>
-    <td>mp4(https)<br></td><td>+ mp4(m3u8)<br></td><td>=> mp4<br></td>
-</tr>
-<tr>
-    <td>webm(https)<br></td><td>+ m4a(https)<br></td><td>=> mkv<br></td>
-</tr>
-<tr>
-    <td>webm(https)<br></td><td>+ webm(https)<br></td><td>=> webm<br></td>
-</tr>
-<tr>
     <td>mp4(m3u8)<br></td><td>+ webm(https)<br></td><td>=> webm<br></td>
 </tr>
 <tr>
-    <td>mp4(m3u8)<br></td><td>+ m4a(https)<br></td><td>=> mp4<br></td>
-</tr>
-<tr>
-    <td>mp4(m3u8)</td><td>+ mp4(m3u8)</td><td>=> mp4</td>
+    <td>webm<br></td><td>+ m4a<br></td><td>=> mkv<br></td>
 </tr>
 </table>
 <hr>
@@ -260,7 +203,7 @@ class WorkerThread(Thread):
         self.pipe_pos = []
         self.del_origin_cnt = 0
         self.table_lines = []
-        
+
     def run(self):
         parent = self.parent
         # parent.cancelled = False
@@ -362,7 +305,8 @@ class WorkerThread(Thread):
             print(s)
             parent.status.SetLabel(s)
             parent.gauge.SetValue(0)
-            wx.MessageBox(f'{msg}\n\n{s}', TITLE, style=wx.ICON_ERROR)
+            message = f'{msg}\n\n{s}'
+            wx.MessageBox(message, TITLE, style=wx.ICON_ERROR)
             self.abort()
             return
 
@@ -404,7 +348,8 @@ class WorkerThread(Thread):
 
             parent.status.SetLabel(s_)
             parent.gauge.SetValue(0)
-            wx.MessageBox(f'{msg}\n\n{s_}', TITLE, style=wx.ICON_ERROR)
+            message = f'{msg}\n\n{s_}'
+            wx.MessageBox(message, TITLE, style=wx.ICON_ERROR)
 
             if parent.host == 'vimeo' and '"https:"를 "http:"로 교체해 보세요' in s:
                 url = parent.txtURL.GetValue()
@@ -523,7 +468,8 @@ class WorkerThread(Thread):
 
             parent.status.SetLabel(s)
             parent.gauge.SetValue(0)
-            wx.MessageBox(f'{msg}\n\n{s}', TITLE, style=wx.ICON_ERROR)
+            message = f'{msg}\n\n{s}'
+            wx.MessageBox(message, TITLE, style=wx.ICON_ERROR)
             self.abort()
             return
 
@@ -550,9 +496,9 @@ class WorkerThread(Thread):
                 parent.cur_gauge = parent.gauge.GetValue()
                 if parent.L3[parent.row_1st][15] == 'X':
                     if parent.dn == '[다운로드]':
-                        parent.dn = '[다운로드-영상]'
-                    elif parent.dn == '[다운로드-영상]':
-                        parent.dn = '[다운로드-음성]'
+                        parent.dn = '[다운로드-비디오]'
+                    elif parent.dn == '[다운로드-비디오]':
+                        parent.dn = '[다운로드-오디오]'
                         parent.filesize_checked = False
 
             frag = ''
@@ -577,13 +523,13 @@ class WorkerThread(Thread):
                     parent.filesize_checked = True
                     result2 = re.search('of (\s*\d+\.\d+[GMK]iB)', s)
                     if result2:
-                        if parent.dn in ['[다운로드]', '[다운로드-영상]']:
+                        if parent.dn in ['[다운로드]', '[다운로드-비디오]']:
                             if result2.group(1) != parent.L3[parent.row_1st][5]:
                                 # print('result2.group(1) =>', result2.group(1), 'L3[parent.row_1st][5] =>', parent.L3[parent.row_1st][5])
                                 parent.L3[parent.row_1st][5] = result2.group(1)
                                 parent.dvlc.SetValue(result2.group(1), parent.row_1st, 1)
                                 parent.total_size_in_dvlc_3()
-                        elif parent.dn == '[다운로드-음성]':
+                        elif parent.dn == '[다운로드-오디오]':
                             if result2.group(1) != parent.L4[parent.row_2nd][3]:
                                 parent.L4[parent.row_2nd][3] = result2.group(1)
                                 parent.dvlc_2.SetValue(result2.group(1), parent.row_2nd, 2)
@@ -705,7 +651,7 @@ class WorkerThread2(Thread):
     def checkproc_remux(self):
         parent = self.parent
         s = str(parent.proc.stdout.readline())
-        print(s)
+        # print(s)
         if s == "b''":
             parent.task_done = True
             self.abort()
@@ -790,11 +736,22 @@ class WorkerThread3(Thread):
         elif parent.task == 'kdownloader':
             parent.set_controls(parent.task)
             parent.gauge.SetRange(102)
-            s = f'[{TITLE} 설치파일 다운로드] 준비 중입니다. 잠깐만 기다려주세요..'
+            s = ''
+            if parent.task == 'kdownloader':
+                s = '[K-Downloader 설치파일] '
+            elif parent.task == 'ytdlp2':
+                s = '[yt-dlp.exe] '
+            elif parent.task == 'ffmpeg':
+                s = '[ffmpeg.exe] '
+
+            s += '준비 중입니다. 잠깐만 기다려주세요..'
             parent.status.SetLabel(s)
-            url = ('https://github.com/doriok-lab/k-downloader/releases/download/k-downloader_' +
-                   parent.kdownloader_latest_version + '/k-downloader-setup.exe')
-            parent.outfile = parent.config["download-dir"] + '\\k-downloader-setup.exe'
+            parent.gauge.SetValue(0)
+            url = 'https://github.com/doriok-lab/k-downloader/releases/download/'
+            if parent.task == 'kdownloader':
+                url += 'k-downloader_' + parent.kdownloader_latest_version + '/k-downloader-setup.exe'
+                parent.outfile = parent.config["download-dir"] + '\\k-downloader-setup.exe'
+
             response = requests.get(url, stream=True)
             self.total_size = int(response.headers.get('content-length', 0))
             self.done_size = 0
@@ -858,12 +815,12 @@ class WorkerThread3(Thread):
     def checkproc_update_ytdlp(self):
         parent = self.parent
         s = str(parent.proc.stdout.readline())
-        print(s)
+        # print(s)
         if s == "b''":
             return
 
         s = s.replace("b'", "").replace("\\r\\n'", "")
-        print(s)
+        # print(s)
         s = s.replace('Current version', '현재 버전') \
             .replace('Latest version', '최신 버전') \
             .replace('Current Build Hash', '현재 빌드 해시') \
@@ -876,7 +833,8 @@ class WorkerThread3(Thread):
         if '안정 버전으로 업데이트됨' in s:
             parent.ytdlp_current_version = parent.ytdlp_latest_version
             parent.gauge.SetValue(10)
-            wx.MessageBox(f'yt-dlp 업데이트 완료\n\n업데이트 버전: {parent.ytdlp_latest_version}', TITLE, style=wx.ICON_INFORMATION)
+            message = f'yt-dlp 업데이트 완료\n\n업데이트 버전: {parent.ytdlp_latest_version}'
+            wx.MessageBox(message, TITLE, style=wx.ICON_INFORMATION)
             wx.PostEvent(self.parent, ResultEvent('ytdlp-finished'))
             return
 
@@ -888,8 +846,16 @@ class WorkerThread3(Thread):
 
     def checkproc_download_kdownloader(self):
         parent = self.parent
-        s = (f'[K-Downloader 설치파일 다운로드] {self.done_size_percent:4}%      '
-             f'크기: {self.total_size/1048576:7.2f}MiB      속도: {self.size_per_sec}')
+        s = ''
+        if parent.task == 'kdownloader':
+            s = '[K-Downloader 설치파일] '
+        elif parent.task == 'ytdlp2':
+            s = '[yt-dlp.exe] '
+        elif parent.task == 'ffmpeg':
+            s = '[ffmpeg.exe] '
+
+        s += (f'{self.done_size_percent:4}%      크기: {self.total_size/1048576:7.2f}MiB      '
+              f'속도: {self.size_per_sec}')
         parent.status.SetLabel(s)
         parent.gauge.SetValue(self.done_size_percent)
         if self.done_size_percent >= 100:
@@ -983,6 +949,7 @@ class VideoDownloader(wx.Frame):
         self.ytdlp_current_version = ''
         self.ytdlp_latest_version = ''
         self.kdownloader_latest_version = ''
+        self.ffmpeg_latest_version = ''
         self.percent_last = -1
         self.progress_count = 0
         self.row_1st = -1
@@ -1069,14 +1036,14 @@ class VideoDownloader(wx.Frame):
         self.btnAbort = btnAbort = wx.Button(pn, -1, '중지')
         btnAbort.Disable()
         self.dvlc = dvlc = wx.dataview.DataViewListCtrl(pn,
-                                                        size=(280, 332), style=wx.BORDER_NONE)
-        col_labels = [('포맷', 185), ('파일 크기', 75)]
+                                                        size=(285, 332), style=wx.BORDER_NONE)
+        col_labels = [('해상도 ( 확장자, 비트레이트 )', 190), ('파일 크기', 75)]
         for x, y in col_labels:
             dvlc.AppendTextColumn(x, width=y)
 
         self.dvlc_2 = dvlc_2 = wx.dataview.DataViewListCtrl(pn,
-                                                            size=(250, 332), style=wx.BORDER_NONE)
-        col_labels2 = [('확장자', 65), ('오디오 BR', 70), ('파일 크기', 75), ('비고', 30)]
+                                                            size=(255, 332), style=wx.BORDER_NONE)
+        col_labels2 = [('확장자', 65), ('비트레이트', 75), ('파일 크기', 75), ('비고', 30)]
         for x, y in col_labels2:
             dvlc_2.AppendTextColumn(x, width=y)
 
@@ -1332,7 +1299,8 @@ class VideoDownloader(wx.Frame):
 
     def onextract(self, evt=None):
         if not self.txtURL.GetValue():
-            wx.MessageBox('동영상 URL을 입력하세요.\n\n ', TITLE, style=wx.ICON_WARNING)
+            message = '동영상 URL을 입력하세요.\n\n '
+            wx.MessageBox(message, TITLE, style=wx.ICON_WARNING)
             self.txtURL.SetFocus()
             return
 
@@ -1401,10 +1369,19 @@ class VideoDownloader(wx.Frame):
                 self.status.SetLabel(msg)
                 self.killtask(msg)
 
-            elif evt.data in ['ytdlp-cancelled', 'kdownloader-cancelled']:
+            elif evt.data in ['ytdlp-cancelled', 'kdownloader-cancelled', 'ytdlp2-cancelled', 'ffmpeg-cancelled']:
                 self.gauge.SetValue(0)
-                msg = 'yt-dlp 업데이트가 취소되었습니다.' if self.task == 'ytdlp' \
-                    else f'{TITLE} 설치파일 다운로드가 취소되었습니다.'
+                msg = ''
+                if self.task == 'ytdlp':
+                    msg = 'yt-dlp 업데이트'
+                elif self.task == 'kdownloader':
+                    msg = f'{TITLE} 설치파일 다운로드'
+                elif self.task == 'ytdlp2':
+                    msg = 'yt-dlp.exe 다운로드'
+                elif self.task == 'ffmpeg':
+                    msg = 'ffmpeg.exe 다운로드'
+
+                msg += '가 취소되었습니다.'
                 self.status.SetLabel(msg)
                 self.killtask(msg)
 
@@ -1437,8 +1414,6 @@ class VideoDownloader(wx.Frame):
                 self.gauge.SetValue(self.gauge.GetRange())
                 filename = os.path.split(self.outfile)[1]
                 self.status.SetLabel(f'[리먹싱 완료] {filename}')
-
-                # wx.MessageBox(f'리먹싱 완료\n\n{filename}', TITLE, style=wx.ICON_INFORMATION)
                 self.btnOpenDir.Show()
                 self.btnOpen.Show()
                 self.inner2.Layout()
@@ -1472,12 +1447,18 @@ class VideoDownloader(wx.Frame):
                             self.Close()
                             self.onopen_dir2()
 
+    def check_update(self):
+        self.ytdlp_current_version = get_version_number(YT_DLP_PATH)
+        wx.CallLater(1, self.check_version_latest, 'ytdlp')
+        wx.CallLater(1000, self.check_version_latest, 'kdownloader')
+
     def killtask(self, message, arg=None):
         if self.proc:
             Popen(f'TASKKILL /F /PID {self.proc.pid} /T', creationflags=0x08000000)
 
         if not arg:
-            wx.MessageBox(f'{message}\n\n ', TITLE)
+            message = f'{message}\n\n '
+            wx.MessageBox(message, TITLE)
 
     def display_formats(self, arg):
         self.dvlc.DeleteAllItems()
@@ -1497,7 +1478,8 @@ class VideoDownloader(wx.Frame):
                 self.restore_controls('extract')
                 self.sizer.Hide(self.inner3)
                 self.sizer.Hide(self.inner4)
-                message_ = f'라이브 스트리밍 중...\n\n[{self.host}] {self.cur_video["id"]} :\n{self.cur_video["title"]}'
+                message_ = (f'라이브 스트리밍 중...\n\n'
+                            f'[{self.host}] {self.cur_video["id"]} :\n{self.cur_video["title"]}')
                 wx.MessageBox(message_, TITLE, wx.ICON_EXCLAMATION | wx.OK)
                 return
 
@@ -1552,7 +1534,7 @@ class VideoDownloader(wx.Frame):
                         if l[2] == 'unknown':
                             l[2] = l[0]
                     elif self.host == 'naver':
-                        # 파일 크기가 모두 동일하게 나옴 => 재생시간, 총비트전송률을 고려하여 파일 크기 계산
+                        # 파일 크기가 모두 동일하게 나옴 => 재생시간, 총비트레이트를 고려하여 파일 크기 계산
                         tbr = int(l[6][:-1]) * 1000
                         size_byte = tbr / 8 * int(self.cur_video["duration"])
                         unit = ''
@@ -1895,7 +1877,7 @@ class VideoDownloader(wx.Frame):
             self.dvlc_3.DeleteAllItems()
             items = ['ID', '확장자', '해상도', '초당 프레임 수', '채널 수', '파일 크기',
                      '총 비트 전송률', '프로토콜', '비디오 코덱', '비디오 비트 전송률', '오디오 코덱',
-                     '오디오 비트 전송률', '오디오 샘플 속도', '기타', '영상', '음성']
+                     '오디오 비트 전송률', '오디오 샘플 속도', '기타', '영상', '소리']
 
             for i in range(1, 16):
                 # '프로토콜', '기타' 항목은 는 표시하지 않음
@@ -1942,7 +1924,7 @@ class VideoDownloader(wx.Frame):
             self.inner3.Show(self.bsizer3)
             self.dvlc_3.Layout()
 
-            # 음성이 없는 경우 오디오 전용 포맷 선택
+            # 소리가 없는 경우 오디오 전용 포맷 선택
             if self.L3[row][15] == 'X':
                 self.dvlc_2.Enable()
                 self.display_formats2()
@@ -2031,7 +2013,7 @@ class VideoDownloader(wx.Frame):
             for i in range(4, 7):
                 self.dvlc_3.SetValue(self.L4[row][i], i + 5, 1)
 
-            # 음성(O/X)
+            # 소리(O/X)
             self.dvlc_3.SetValue('O', 13, 1)
 
     def display_formats2(self):
@@ -2053,9 +2035,22 @@ class VideoDownloader(wx.Frame):
         Popen(f'explorer "{self.config["download-dir"]}"')
 
     def onopen_dir2(self, evt=None):
+        if evt:
+            if not os.path.isfile(self.outfile):
+                folder, basename = os.path.split(self.outfile)
+                message = f'파일이 존재하지 않습니다.\n\n폴더: {folder}\n파일명: {basename}'
+                wx.MessageBox(message, TITLE, style=wx.ICON_WARNING)
+                return
+
         Popen(f'explorer /select, "{self.outfile}"')
 
     def onopen_file(self, evt):
+        if not os.path.isfile(self.outfile):
+            folder, basename = os.path.split(self.outfile)
+            message = f'파일이 존재하지 않습니다.\n\n폴더: {folder}\n파일명: {basename}'
+            wx.MessageBox(message, TITLE, style=wx.ICON_WARNING)
+            return
+
         os.startfile(self.outfile)
 
     def onhelp(self, evt):
@@ -2139,8 +2134,9 @@ class VideoDownloader(wx.Frame):
 
     def ondownload(self, evt=None):
         if is_running(f'{YT_DLP}'):
-            message = f'{TITLE}(중복 실행)에서 다운로드 진행 중입니다.\n\n다운로드를 중지하거나 다운로드 완료 후 다시 시도해주세요.'
-            wx.MessageBox(f'{message}', TITLE, style=wx.ICON_WARNING)
+            message = (f'{TITLE}(중복 실행)에서 다운로드 진행 중입니다.\n\n'
+                       f'다운로드를 중지하거나 다운로드 완료 후 다시 시도해주세요.')
+            wx.MessageBox(message, TITLE, style=wx.ICON_WARNING)
             return
 
         self.status.SetLabel('')
@@ -2239,8 +2235,10 @@ class VideoDownloader(wx.Frame):
         self.control_state['inner2.IsShown'] = self.sizer.IsShown(self.inner2)
         self.control_state['btnOpenDir.IsShown'] = self.btnOpenDir.IsShown()
         self.control_state['btnOpen.IsShown'] = self.btnOpen.IsShown()
-        self.control_state['btnAbort.IsEnabled'] = self.btnAbort.IsEnabled()
+        self.control_state['txtURL.IsEnabled'] = self.txtURL.IsEnabled()
+        self.control_state['btnPaste.IsEnabled'] = self.btnPaste.IsEnabled()
         self.control_state['btnExtract.IsEnabled'] = self.btnExtract.IsEnabled()
+        self.control_state['btnAbort.IsEnabled'] = self.btnAbort.IsEnabled()
         self.control_state['btnDownload.IsEnabled'] = self.btnDownload.IsEnabled()
         self.control_state['cbRemux.IsEnabled'] = self.cbRemux.IsEnabled()
 
@@ -2272,7 +2270,7 @@ class VideoDownloader(wx.Frame):
             self.dvlc_2.Disable()
             self.btnUnselect.Disable()
 
-        elif arg in ['ytdlp', 'kdownloader']:
+        elif arg in ['ytdlp', 'kdownloader', 'ytdlp2', 'ffmpeg']:
             self.menuBar.Enable(101, False)
             self.menuBar.Enable(111, False)
             self.menuBar.Enable(203, False)
@@ -2284,6 +2282,8 @@ class VideoDownloader(wx.Frame):
         self.btnOpenDir.Hide()
         self.btnOpen.Hide()
         self.btnAbort.Enable()
+        self.txtURL.Disable()
+        self.btnPaste.Disable()
         self.btnExtract.Disable()
         self.btnDownload.Disable()
         self.cbRemux.Disable()
@@ -2295,8 +2295,10 @@ class VideoDownloader(wx.Frame):
         self.sizer.Show(self.inner2, self.control_state['inner2.IsShown'])
         self.btnOpenDir.Show(self.control_state['btnOpenDir.IsShown'])
         self.btnOpen.Show(self.control_state['btnOpen.IsShown'])
-        self.btnAbort.Enable(self.control_state['btnAbort.IsEnabled'])
+        self.txtURL.Enable(self.control_state['txtURL.IsEnabled'])
+        self.btnPaste.Enable(self.control_state['btnPaste.IsEnabled'])
         self.btnExtract.Enable(self.control_state['btnExtract.IsEnabled'])
+        self.btnAbort.Enable(self.control_state['btnAbort.IsEnabled'])
         self.btnDownload.Enable(self.control_state['btnDownload.IsEnabled'])
         self.cbRemux.Enable(self.control_state['cbRemux.IsEnabled'])
 
@@ -2319,7 +2321,7 @@ class VideoDownloader(wx.Frame):
             elif self.cur_dvlc == 2:
                 self.dvlc_2.SetFocus()
 
-        elif arg in ['ytdlp', 'kdownloader']:
+        elif arg in ['ytdlp', 'kdownloader', 'ytdlp2', 'ffmpeg']:
             self.menuBar.Enable(101, True)
             self.menuBar.Enable(111, True)
             self.menuBar.Enable(203, True)
@@ -2354,8 +2356,13 @@ class VideoDownloader(wx.Frame):
 
     def onupdate_ytdlp(self, evt):
         if self.worker3:
-            message = f'yt-dlp 업데이트 중입니다.\n\n' \
-                      f'현재 버전: {self.ytdlp_current_version}\n\n최신 버전: {self.ytdlp_latest_version}'
+            message = ''
+            if self.task == 'ytdlp':
+                message = f'yt-dlp 업데이트 중입니다.\n\n' \
+                          f'현재 버전: {self.ytdlp_current_version}\n\n최신 버전: {self.ytdlp_latest_version}'
+            else:
+                message = '업데이트 확인 중입니다.\n\n '
+
             wx.MessageBox(message, TITLE, style=wx.ICON_WARNING)
             return
 
@@ -2527,6 +2534,9 @@ class VideoDownloader(wx.Frame):
             print(e)
 
     def cleanup(self):
+        if self.worker:
+            self.worker.abort()
+
         for file in self.tempfiles:
             if os.path.isfile(file):
                 try:
