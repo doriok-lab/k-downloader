@@ -64,15 +64,17 @@ class Help(wx.Dialog):
     <br>⇒ 이때의 비트레이트는 <strong>오디오만</strong>의 비트레이트임.
 <p>- 포맷을 선택하였을 때 우측에 '오디오 추가' 목록이 <strong>안 나타나면</strong> 영상과 소리 <strong>둘 다 있는</strong>(Both video and audio) 것임.</td>
     <br>⇒ 이때의 비트레이트는 <strong>비디오+오디오를 합한</strong> 총비트레이트임.<br>
+<p>- 파일 크기에 '~' 표시가 있는 것은 m3u8 또는 dash임.
 <hr>
 <a href="https://ko.wikipedia.org/wiki/mp4">mp4</a>&nbsp;&nbsp;&nbsp;&nbsp;
-<a href="https://ko.wikipedia.org/wiki/m4a">m4a</a>&nbsp;&nbsp;&nbsp;&nbsp;
 <a href="https://ko.wikipedia.org/wiki/WebM">webm</a>&nbsp;&nbsp;&nbsp;&nbsp;
+<a href="https://ko.wikipedia.org/wiki/HTTPS">https</a>&nbsp;&nbsp;&nbsp;&nbsp;
 <a href="https://ko.wikipedia.org/wiki/HTTP_라이브_스트리밍">m3u8</a>&nbsp;&nbsp;&nbsp;&nbsp;
+<a href="https://ko.wikipedia.org/wiki/HTTP_동적_적응_스트리밍">dash</a>&nbsp;&nbsp;&nbsp;&nbsp;
 <a href="https://ko.wikipedia.org/wiki/GiB">GiB</a>&nbsp;&nbsp;&nbsp;&nbsp;
 <a href="https://ko.wikipedia.org/wiki/MiB">MiB</a>&nbsp;&nbsp;&nbsp;&nbsp;
-<a href="https://ko.wikipedia.org/wiki/KiB">KiB</a>&nbsp;&nbsp;&nbsp;&nbsp;
-<a href="https://ko.wikipedia.org/wiki/비트레이트">비트레이트</a><br><br>
+<a href="https://ko.wikipedia.org/wiki/KiB">KiB</a><br><br>
+<a href="https://ko.wikipedia.org/wiki/비트레이트">비트레이트</a>&nbsp;&nbsp;&nbsp;&nbsp;
 <a href="https://ko.wikipedia.org/wiki/8K_해상도">8K Ultra HD</a>&nbsp;&nbsp;&nbsp;&nbsp;
 <a href="https://ko.wikipedia.org/wiki/4K_해상도">4K Ultra HD</a>&nbsp;&nbsp;&nbsp;&nbsp;
 <a href="https://ko.wikipedia.org/wiki/1080p">Full HD</a>"""
@@ -111,6 +113,9 @@ class Help(wx.Dialog):
 <a href="https://ko.wikipedia.org/wiki/m4a">m4a</a>&nbsp;&nbsp;&nbsp;&nbsp;
 <a href="https://ko.wikipedia.org/wiki/WebM">webm</a>&nbsp;&nbsp;&nbsp;&nbsp;
 <a href="https://ko.wikipedia.org/wiki/.mkv">mkv</a>&nbsp;&nbsp;&nbsp;&nbsp;
+<a href="https://ko.wikipedia.org/wiki/HTTPS">https</a>&nbsp;&nbsp;&nbsp;&nbsp;
+<a href="https://ko.wikipedia.org/wiki/HTTP_라이브_스트리밍">m3u8</a>&nbsp;&nbsp;&nbsp;&nbsp;
+<a href="https://ko.wikipedia.org/wiki/HTTP_동적_적응_스트리밍">dash</a>&nbsp;&nbsp;&nbsp;&nbsp;
 <a href="https://ko.wikipedia.org/wiki/컴프레서_(오디오)">DRC</a>"""
 
         elif arg == 3:
@@ -324,11 +329,14 @@ class WorkerThread(Thread):
             msg = '에러:'
 
             s = re.sub('please report.*', '', s)
-            s = re.sub('This live event will begin in a few moments', '이 라이브 이벤트는 잠시 후에 시작됩니다', s)
-            s = re.sub('This live event will begin in (\d+) minutes', r'이 라이브 이벤트는 \1분 후에 시작됩니다', s)
-            s = re.sub('This live event will begin in (\d+) hours', r'이 라이브 이벤트는 \1시간 후에 시작됩니다', s)
-            s = re.sub('This live event will begin in (\d+) days', r'이 라이브 이벤트는 \1일 후에 시작됩니다', s)
-            s = s.replace('Video unavailable. This video has been removed by the uploader',
+            s = re.sub('This live event will begin in (\d+) minutes', r'이 생방송은 \1분 후에 시작됩니다', s)
+            s = re.sub('This live event will begin in (\d+) hours', r'이 생방송은 \1시간 후에 시작됩니다', s)
+            s = re.sub('This live event will begin in (\d+) days', r'이 생방송은 \1일 후에 시작됩니다', s)
+            s = s.replace('This live event will begin in a few moments',
+                         '이 생방송은 잠시 후에 시작됩니다') \
+                .replace('This live event has ended',
+                         '이 생방송은 종료되었습니다') \
+                .replace('Video unavailable. This video has been removed by the uploader',
                          '비디오를 사용할 수 없습니다. 이 비디오는 업로더에 의해 제거되었습니다') \
                 .replace('Unable to extract playlist data', '재생 목록 데이터를 추출할 수 없습니다') \
                 .replace('This request has been blocked due to its TLS fingerprint. '
@@ -739,10 +747,6 @@ class WorkerThread3(Thread):
             s = ''
             if parent.task == 'kdownloader':
                 s = '[K-Downloader 설치파일] '
-            elif parent.task == 'ytdlp2':
-                s = '[yt-dlp.exe] '
-            elif parent.task == 'ffmpeg':
-                s = '[ffmpeg.exe] '
 
             s += '준비 중입니다. 잠깐만 기다려주세요..'
             parent.status.SetLabel(s)
@@ -849,10 +853,6 @@ class WorkerThread3(Thread):
         s = ''
         if parent.task == 'kdownloader':
             s = '[K-Downloader 설치파일] '
-        elif parent.task == 'ytdlp2':
-            s = '[yt-dlp.exe] '
-        elif parent.task == 'ffmpeg':
-            s = '[ffmpeg.exe] '
 
         s += (f'{self.done_size_percent:4}%      크기: {self.total_size/1048576:7.2f}MiB      '
               f'속도: {self.size_per_sec}')
@@ -931,7 +931,7 @@ class WorkerThread4(Thread):
 
 
 class VideoDownloader(wx.Frame):
-    def __init__(self):
+    def __init__(self, parent):
         wx.Frame.__init__(self, None, title=TITLE, size=(880, -1),
                           style=wx.DEFAULT_FRAME_STYLE & ~(wx.RESIZE_BORDER | wx.MAXIMIZE_BOX))
 
@@ -949,7 +949,6 @@ class VideoDownloader(wx.Frame):
         self.ytdlp_current_version = ''
         self.ytdlp_latest_version = ''
         self.kdownloader_latest_version = ''
-        self.ffmpeg_latest_version = ''
         self.percent_last = -1
         self.progress_count = 0
         self.row_1st = -1
@@ -1369,17 +1368,13 @@ class VideoDownloader(wx.Frame):
                 self.status.SetLabel(msg)
                 self.killtask(msg)
 
-            elif evt.data in ['ytdlp-cancelled', 'kdownloader-cancelled', 'ytdlp2-cancelled', 'ffmpeg-cancelled']:
+            elif evt.data in ['ytdlp-cancelled', 'kdownloader-cancelled']:
                 self.gauge.SetValue(0)
                 msg = ''
                 if self.task == 'ytdlp':
                     msg = 'yt-dlp 업데이트'
                 elif self.task == 'kdownloader':
                     msg = f'{TITLE} 설치파일 다운로드'
-                elif self.task == 'ytdlp2':
-                    msg = 'yt-dlp.exe 다운로드'
-                elif self.task == 'ffmpeg':
-                    msg = 'ffmpeg.exe 다운로드'
 
                 msg += '가 취소되었습니다.'
                 self.status.SetLabel(msg)
@@ -1473,12 +1468,12 @@ class VideoDownloader(wx.Frame):
 
             if self.cur_video["is_live"]:
                 self.gauge.SetValue(0)
-                msg = f'[{self.host}] {self.cur_video["id"]} : 라이브 스트리밍 중...'
+                msg = f'[{self.host}] {self.cur_video["id"]} : 현재 생방송 중...'
                 self.status.SetLabel(msg)
                 self.restore_controls('extract')
                 self.sizer.Hide(self.inner3)
                 self.sizer.Hide(self.inner4)
-                message_ = (f'라이브 스트리밍 중...\n\n'
+                message_ = (f'현재 생방송 중...\n\n'
                             f'[{self.host}] {self.cur_video["id"]} :\n{self.cur_video["title"]}')
                 wx.MessageBox(message_, TITLE, wx.ICON_EXCLAMATION | wx.OK)
                 return
@@ -2270,7 +2265,7 @@ class VideoDownloader(wx.Frame):
             self.dvlc_2.Disable()
             self.btnUnselect.Disable()
 
-        elif arg in ['ytdlp', 'kdownloader', 'ytdlp2', 'ffmpeg']:
+        elif arg in ['ytdlp', 'kdownloader']:
             self.menuBar.Enable(101, False)
             self.menuBar.Enable(111, False)
             self.menuBar.Enable(203, False)
@@ -2321,7 +2316,7 @@ class VideoDownloader(wx.Frame):
             elif self.cur_dvlc == 2:
                 self.dvlc_2.SetFocus()
 
-        elif arg in ['ytdlp', 'kdownloader', 'ytdlp2', 'ffmpeg']:
+        elif arg in ['ytdlp', 'kdownloader']:
             self.menuBar.Enable(101, True)
             self.menuBar.Enable(111, True)
             self.menuBar.Enable(203, True)
@@ -2453,6 +2448,7 @@ class VideoDownloader(wx.Frame):
             .replace('Extracting information', '정보 추출') \
             .replace('Extracting URL', 'URL 추출') \
             .replace('Downloading API JSON', 'API JSON 다운로드') \
+            .replace('Downloading mweb player API JSON', 'mweb 플레이어 API JSON 다운로드') \
             .replace('Downloading android player API JSON', '안드로이드 플레이어 API JSON 다운로드') \
             .replace('Downloading ios player API JSON', 'iOS 플레이어 API JSON 다운로드') \
             .replace('Downloading tv player API JSON', 'tv 플레이어 API JSON 다운로드') \
@@ -2520,18 +2516,43 @@ class VideoDownloader(wx.Frame):
         self.Close()
 
     def onwindow_close(self, evt):
+        progrdlg = wx.GenericProgressDialog('프로그램 종료', '', maximum=5, parent=self,
+                                                 style=0 | wx.PD_AUTO_HIDE | wx.PD_SMOOTH)
+
+        progrdlg.Update(1, '변수 저장 중...')
         try:
             with open('config.pickle', 'wb') as f:
                 pickle.dump(self.config, f)
         except Exception as e:
             print(e)
 
-        self.cleanup()
+        progrdlg.Update(2, '쓰레드 닫는 중...')
+        if self.worker:
+            self.worker.abort()
 
-        try:
-            self.Destroy()
-        except Exception as e:
-            print(e)
+        progrdlg.Update(3, '임시파일 삭제 중...')
+        for file in self.tempfiles:
+            if os.path.isfile(file):
+                try:
+                    os.remove(file)
+                except Exception as e:
+                    print(e)
+
+        progrdlg.Update(4, '프로세스 종료 중...')
+        if self.proc:
+            Popen(f'TASKKILL /F /PID {self.proc.pid} /T'.split(), creationflags=0x08000000)
+
+        procs = [proc for proc in psutil.process_iter(['name', 'pid'])
+                 if proc.info['name'] in ['explorer.exe', YT_DLP]]
+        for proc in procs:
+            if  proc.info['pid'] not in self.pids_explorer_existing:
+                try:
+                    proc.terminate()
+                except Exception as e:
+                    print(e)
+
+        progrdlg.Destroy()
+        self.Destroy()
 
     def cleanup(self):
         if self.worker:
@@ -2559,6 +2580,6 @@ class VideoDownloader(wx.Frame):
 
 if __name__ == '__main__':
     app = wx.App()
-    frame = VideoDownloader()
+    frame = VideoDownloader(None)
     frame.Show()
     app.MainLoop()
