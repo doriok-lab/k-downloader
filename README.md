@@ -7,8 +7,8 @@
 <br>2024.09.09
 <p><strong>사용된 소프트웨어</strong>:<br>
 - <a href="https://github.com/yt-dlp/yt-dlp">yt-dlp</a> 2024.08.06<br>
-- <a href="https://www.ffmpeg.org/">FFmpeg</a> 2024-06-21-git-d45e20c37b<br>
-- <a href="https://wxpython.org/">wxPython</a> 4.2.0<br>
+- <a href="https://www.ffmpeg.org/">FFmpeg</a> ffmpeg-2022-05-23-git-6076dbcb55<br>
+- <a href="https://wxpython.org/">wxPython</a> 4.2.1<br>
 - <a href="https://pyinstaller.org/">PyInstaller</a> 5.9.0<br>
 - 기타 Python용 패키지
 <p><strong>프로그래밍 언어</strong>:<br>
